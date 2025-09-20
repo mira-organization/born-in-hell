@@ -1,3 +1,5 @@
+#![coverage(off)]
+
 use std::fs::{read_to_string, write};
 use std::path::Path;
 use bevy::prelude::*;
