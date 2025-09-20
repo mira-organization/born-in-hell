@@ -74,6 +74,7 @@ fn main() {
 /// # Parameters
 /// - `app`: A mutable reference to the [`App`] instance.
 /// - `config`: [`GlobalConfig`] containing window configuration.
+#[coverage(off)]
 fn init_bevy_app(app: &mut App, config: &GlobalConfig) {
     app
         .insert_resource(config.clone())
@@ -131,6 +132,7 @@ fn init_app_finish(mut next_state: ResMut<NextState<AppState>>) {
 /// ```rust
 /// let gpu_settings = create_gpu_settings();
 /// ```
+#[coverage(off)]
 fn create_gpu_settings(backend_str: &str) -> WgpuSettings {
     let backend = match backend_str {
         "auto" | "AUTO" | "primary" | "PRIMARY" => Some(Backends::PRIMARY),
@@ -187,6 +189,7 @@ fn check_world_inspector_state(
 /// - The log file is set up to append new logs.
 /// - ANSI formatting is disabled for better readability in plain text files.
 /// - The log writer ensures proper synchronization using `Arc<Mutex<File>>`.
+#[coverage(off)]
 fn log_file_appender(_app: &mut App) -> Option<BoxedLayer> {
     let log_dir = PathBuf::from("logs");
     if let Err(e) = std::fs::create_dir_all(&log_dir) {
@@ -288,6 +291,7 @@ mod manager {
         }
     }
 
+    #[coverage(off)]
     fn setup_shadow_map(mut commands: Commands) {
         commands.insert_resource(DirectionalLightShadowMap { size: 1024 });
     }
