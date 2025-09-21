@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::render::camera::{Projection, OrthographicProjection, ScalingMode};
+use bevy::render::view::RenderLayers;
 use game_core::states::AppState;
 
 pub struct GameCameraPlugin;
@@ -22,6 +22,7 @@ fn setup_game_camera(mut commands: Commands) {
             ..default()
         },
         Msaa::Sample4,
+        RenderLayers::from_layers(&[0, 1]),
         Transform {
             translation: Vec3::new(5.0, 35.0, 55.0),
             rotation: Quat::from_rotation_x(-35.0_f32.to_radians()),
@@ -39,11 +40,7 @@ fn setup_ui_camera(mut commands: Commands) {
             clear_color: ClearColorConfig::None,
             ..default()
         },
-        Msaa::Sample4,
-        Projection::Orthographic(OrthographicProjection {
-            scaling_mode: ScalingMode::WindowSize,
-            scale: 1.0,
-            ..OrthographicProjection::default_2d()
-        }),
+        RenderLayers::layer(1),
+        Msaa::Sample4
     ));
 }

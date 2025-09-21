@@ -1,5 +1,6 @@
 use bevy::pbr::{CascadeShadowConfig, CascadeShadowConfigBuilder};
 use bevy::prelude::*;
+use bevy_rapier3d::prelude::{AsyncSceneCollider, ComputedColliderShape, TriMeshFlags};
 use game_core::states::AppState;
 
 pub struct TestRoomPlugin;
@@ -18,7 +19,11 @@ fn load_test_room(mut commands: Commands, asset_server: Res<AssetServer>, mut ne
         SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset("maps/test_room.glb"))),
         Transform::default(),
         GlobalTransform::default(),
-        Visibility::default()
+        Visibility::default(),
+        AsyncSceneCollider {
+            shape: Some(ComputedColliderShape::TriMesh(TriMeshFlags::MERGE_DUPLICATE_VERTICES)),
+            ..default()
+        }
     ));
 
     next_state.set(AppState::PostLoad);
