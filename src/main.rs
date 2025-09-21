@@ -272,7 +272,7 @@ mod manager {
         fn build(&self, app: &mut App) {
             app.add_plugins(RapierPhysicsPlugin::<NoUserData>::default());
             app.add_plugins(RapierDebugRenderPlugin {
-                enabled: false,
+                enabled: true,
                 ..default()
             });
 

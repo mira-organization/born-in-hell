@@ -1,12 +1,12 @@
 use bevy::prelude::*;
-use bevy::render::camera::{Projection, OrthographicProjection, ScalingMode};
+use bevy::render::view::RenderLayers;
 use game_core::states::AppState;
 
 pub struct GameCameraPlugin;
 
 impl Plugin for GameCameraPlugin {
-    
-    #[coverage(off)]   
+
+    #[coverage(off)]
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Preload), setup_ui_camera);
         app.add_systems(OnEnter(AppState::PostLoad), setup_game_camera);
@@ -22,11 +22,12 @@ fn setup_game_camera(mut commands: Commands) {
             ..default()
         },
         Msaa::Sample4,
-        Projection::Orthographic(OrthographicProjection {
-            scaling_mode: ScalingMode::WindowSize,
-            scale: 1.0,
-            ..OrthographicProjection::default_3d()
-        }),
+        RenderLayers::from_layers(&[0, 1]),
+        Transform {
+            translation: Vec3::new(5.0, 35.0, 55.0),
+            rotation: Quat::from_rotation_x(-35.0_f32.to_radians()),
+            ..Default::default()
+        }
     ));
 }
 
@@ -36,13 +37,10 @@ fn setup_ui_camera(mut commands: Commands) {
         Camera2d::default(),
         Camera {
             order: 1,
+            clear_color: ClearColorConfig::None,
             ..default()
         },
-        Msaa::Sample4,
-        Projection::Orthographic(OrthographicProjection {
-            scaling_mode: ScalingMode::WindowSize,
-            scale: 1.0,
-            ..OrthographicProjection::default_2d()
-        }),
+        RenderLayers::layer(1),
+        Msaa::Sample4
     ));
 }
