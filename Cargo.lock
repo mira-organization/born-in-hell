@@ -439,7 +439,7 @@ dependencies = [
  "derive_more",
  "downcast-rs 2.0.2",
  "either",
- "petgraph 0.7.1",
+ "petgraph",
  "ron",
  "serde",
  "smallvec",
@@ -655,6 +655,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "bevy_ecs_tilemap"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec11e943225eb172928a85f2183b665f7782743b00bca937fbab3736921a1666"
+dependencies = [
+ "bevy",
+ "log",
 ]
 
 [[package]]
@@ -938,7 +948,7 @@ dependencies = [
  "approx",
  "bevy_reflect",
  "derive_more",
- "glam 0.29.3",
+ "glam",
  "itertools 0.14.0",
  "libm",
  "rand 0.8.5",
@@ -980,7 +990,7 @@ version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bb60c753b968a2de0fd279b76a3d19517695e771edb4c23575c7f92156315de"
 dependencies = [
- "glam 0.29.3",
+ "glam",
 ]
 
 [[package]]
@@ -1067,16 +1077,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df7370d0e46b60e071917711d0860721f5347bc958bf325975ae6913a5dfcf01"
 
 [[package]]
-name = "bevy_rapier3d"
+name = "bevy_rapier2d"
 version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ed7b07ace7682f96ca3860022a0dbd8080d0abd295121e8ce4a3e04dc11e32b"
+checksum = "5e3e843e594521ea20fc8fe5cdd81fdbd1993af00947f826486449ab1ab53482"
 dependencies = [
  "bevy",
  "bitflags 2.9.4",
  "log",
  "nalgebra",
- "rapier3d",
+ "rapier2d",
 ]
 
 [[package]]
@@ -1095,8 +1105,8 @@ dependencies = [
  "downcast-rs 2.0.2",
  "erased-serde",
  "foldhash",
- "glam 0.29.3",
- "petgraph 0.7.1",
+ "glam",
+ "petgraph",
  "serde",
  "smallvec",
  "smol_str",
@@ -1577,7 +1587,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
- "bevy_rapier3d",
+ "bevy_rapier2d",
  "chrono",
  "dotenvy",
  "game_core",
@@ -2186,7 +2196,7 @@ checksum = "b0a05902cf601ed11d564128448097b98ebe3c6574bd7b6a653a3d56d54aa020"
 dependencies = [
  "const_panic",
  "encase_derive",
- "glam 0.29.3",
+ "glam",
  "thiserror 1.0.69",
 ]
 
@@ -2553,6 +2563,7 @@ dependencies = [
  "bevy",
  "game_core",
  "game_logic",
+ "serde_json",
 ]
 
 [[package]]
@@ -2568,8 +2579,10 @@ name = "game_world"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "bevy_rapier3d",
+ "bevy_ecs_tilemap",
+ "bevy_rapier2d",
  "game_core",
+ "tiled",
 ]
 
 [[package]]
@@ -2663,12 +2676,6 @@ dependencies = [
  "rand 0.8.5",
  "serde",
 ]
-
-[[package]]
-name = "glam"
-version = "0.30.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34e4649b62c21fb8c737abe6449192ce96ecd16b5c0d606759fe43831b31bd95"
 
 [[package]]
 name = "glob"
@@ -2867,7 +2874,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c9e718d32b6e6b2b32354e1b0367025efdd0b11d6a740b905ddf5db1074679"
 dependencies = [
  "constgebra",
- "glam 0.29.3",
+ "glam",
  "tinyvec",
 ]
 
@@ -3322,7 +3329,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26aecdf64b707efd1310e3544d709c5c0ac61c13756046aaaba41be5c4f66a3b"
 dependencies = [
  "approx",
- "glam 0.29.3",
+ "glam",
  "matrixmultiply",
  "nalgebra-macros",
  "num-complex",
@@ -3968,10 +3975,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "parry3d"
+name = "parry2d"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e0877164c86c741f30fcb13e551a37f5805ffc053710644af3ef8080e526f68"
+checksum = "0f28194ebcc9dbe67e67fd9d29bd33d52fc9b28c74e3f6324440f2aae6c3ca56"
 dependencies = [
  "approx",
  "arrayvec",
@@ -3979,19 +3986,16 @@ dependencies = [
  "downcast-rs 2.0.2",
  "either",
  "ena",
- "glam 0.30.7",
  "hashbrown 0.15.5",
  "log",
  "nalgebra",
  "num-derive",
  "num-traits",
  "ordered-float 5.0.0",
- "rstar",
  "simba",
  "slab",
  "smallvec",
  "spade",
- "static_assertions",
  "thiserror 2.0.16",
 ]
 
@@ -4017,18 +4021,6 @@ dependencies = [
  "indexmap",
  "serde",
  "serde_derive",
-]
-
-[[package]]
-name = "petgraph"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54acf3a685220b533e437e264e4d932cfbdc4cc7ec0cd232ed73c08d03b8a7ca"
-dependencies = [
- "fixedbitset",
- "hashbrown 0.15.5",
- "indexmap",
- "serde",
 ]
 
 [[package]]
@@ -4320,10 +4312,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f93e7e49bb0bf967717f7bd674458b3d6b0c5f48ec7e3038166026a69fc22223"
 
 [[package]]
-name = "rapier3d"
+name = "rapier2d"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b274764d058e242961750c11aff7433255321f621bb98220bb0a82beff1f9897"
+checksum = "7a9d86e53d2e6d33d3e4f1f28e72ec819cfabb8a1cc276391a6e43e3b002ab9c"
 dependencies = [
  "approx",
  "arrayvec",
@@ -4335,15 +4327,12 @@ dependencies = [
  "num-derive",
  "num-traits",
  "ordered-float 5.0.0",
- "parry3d",
- "petgraph 0.8.2",
+ "parry2d",
  "profiling",
  "rustc-hash 2.1.1",
  "simba",
- "smallvec",
  "thiserror 2.0.16",
  "vec_map",
- "wide",
 ]
 
 [[package]]
@@ -4460,17 +4449,6 @@ name = "roxmltree"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
-
-[[package]]
-name = "rstar"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "421400d13ccfd26dfa5858199c30a5d76f9c54e0dba7575273025b43c5175dbb"
-dependencies = [
- "heapless",
- "num-traits",
- "smallvec",
-]
 
 [[package]]
 name = "rustc-hash"
@@ -5022,6 +5000,17 @@ dependencies = [
  "quick-error",
  "weezl",
  "zune-jpeg",
+]
+
+[[package]]
+name = "tiled"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "146e9a4e22e9d913ad492ef33e4555a0915b8618c281e4b023abf8820d91f06c"
+dependencies = [
+ "base64 0.22.1",
+ "flate2",
+ "xml-rs",
 ]
 
 [[package]]

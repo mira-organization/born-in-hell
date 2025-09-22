@@ -31,3 +31,7 @@ path = "../game_logic"
 [dependencies.bevy]
 version = "0.16.1"
 default-features = true
+
+# Serde JSON for handle struct by json files
+[dependencies.serde_json]
+version = "1.0.145"

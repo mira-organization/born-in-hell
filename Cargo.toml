@@ -79,10 +79,10 @@ default-features = true
 version = "0.33.1"
 features = ["egui_clipboard"]
 
-# Bevy Rapier3D for initialize game physics
-[dependencies.bevy_rapier3d]
+# Bevy Rapier2D for initialize game physics
+[dependencies.bevy_rapier2d]
 version = "0.31.0"
-features = ["default", "simd-stable", "debug-render-3d"]
+features = ["default", "simd-stable", "debug-render-2d"]
 
 # Tracing Subscriber for look up traces in logs and for print them
 # into a log file
