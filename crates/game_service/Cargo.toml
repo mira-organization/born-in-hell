@@ -31,3 +31,8 @@ path = "../game_logic"
 [dependencies.bevy]
 version = "0.16.1"
 default-features = true
+
+# Bevy Rapier3D for initialize game physics
+[dependencies.bevy_rapier3d]
+version = "0.31.0"
+features = ["default", "simd-stable", "debug-render-3d"]

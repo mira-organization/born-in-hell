@@ -44,6 +44,11 @@ version = "0.9.2"
 version = "0.9.6"
 features = ["parse", "display"]
 
+# Bevy Rapier3D for initialize game physics
+[dependencies.bevy_rapier3d]
+version = "0.31.0"
+features = ["default", "simd-stable", "debug-render-3d"]
+
 # Fetch system information for windows, linux and Mac
 [dependencies.sysinfo]
 version = "0.37.0"

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::render::view::RenderLayers;
+use game_core::camera::{CameraUi, CameraWorld};
 use game_core::states::AppState;
 
 pub struct GameCameraPlugin;
@@ -23,11 +24,8 @@ fn setup_game_camera(mut commands: Commands) {
         },
         Msaa::Sample4,
         RenderLayers::from_layers(&[0, 1]),
-        Transform {
-            translation: Vec3::new(5.0, 35.0, 55.0),
-            rotation: Quat::from_rotation_x(-35.0_f32.to_radians()),
-            ..Default::default()
-        }
+        Transform::default(),
+        CameraWorld::default()
     ));
 }
 
@@ -41,6 +39,7 @@ fn setup_ui_camera(mut commands: Commands) {
             ..default()
         },
         RenderLayers::layer(1),
-        Msaa::Sample4
+        Msaa::Sample4,
+        CameraUi
     ));
 }
