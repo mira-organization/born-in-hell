@@ -9,9 +9,9 @@ use game_core::world::tiled_to_world_position;
 
 const GRAVITY : f32 = 0.2;
 const TERMINAL_VELOCITY : f32 = 4.0;
-const JUMP_TIME : f32 = 0.225;
-const JUMP_FORCE : f32 = 3.0;
-const SPEED : f32 = 1.5;
+const JUMP_TIME : f32 = 0.5;
+const JUMP_FORCE : f32 = 7.0;
+const SPEED : f32 = 1.85;
 
 pub struct PlayerInitService;
 
@@ -82,7 +82,7 @@ fn init_player(
     });
 
     commands.spawn((
-        Transform::from_translation(Vec3::new(position.x, position.y, 10.)),
+        Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(1.5)),
         Sprite {
             image: asset_server.load("sprites/player.png"),
             texture_atlas: Some(TextureAtlas {
