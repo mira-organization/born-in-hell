@@ -8,8 +8,11 @@ pub mod camera;
 pub mod player;
 pub mod tiled;
 pub mod world;
+pub mod aabb;
+pub mod animation;
 
 use bevy::prelude::*;
+use crate::animation::AnimationModule;
 use crate::player::PlayerModule;
 use crate::tiled::TiledModule;
 
@@ -22,7 +25,7 @@ impl Plugin for GameCorePlugin {
 
     #[coverage(off)]
     fn build(&self, app: &mut App) {
-        app.add_plugins((PlayerModule, TiledModule));
+        app.add_plugins((PlayerModule, AnimationModule, TiledModule));
     }
 
 }
