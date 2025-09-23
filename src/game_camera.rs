@@ -10,7 +10,7 @@ impl Plugin for GameCameraPlugin {
     #[coverage(off)]
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Preload), setup_ui_camera);
-        app.add_systems(OnEnter(AppState::PostLoad), setup_game_camera);
+        app.add_systems(OnEnter(AppState::Preload), setup_game_camera);
     }
 }
 
@@ -24,7 +24,6 @@ fn setup_game_camera(mut commands: Commands) {
         },
         Msaa::Sample4,
         RenderLayers::from_layers(&[0, 1]),
-        Transform::from_xyz(0.0, 0.0, 1000.0),
         CameraGame
     ));
 }

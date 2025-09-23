@@ -5,6 +5,6 @@ pub struct PlayerInitService;
 impl Plugin for PlayerInitService {
 
     #[coverage(off)]
-    fn build(&self, app: &mut App) {
+    fn build(&self, _app: &mut App) {
     }
 }

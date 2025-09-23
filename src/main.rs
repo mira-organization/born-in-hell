@@ -254,6 +254,7 @@ fn load_log_env_filter() -> String {
 mod manager {
     use bevy::pbr::DirectionalLightShadowMap;
     use bevy::prelude::*;
+    use bevy_ecs_tilemap::TilemapPlugin;
     use bevy_rapier2d::prelude::*;
     use game_core::config::GlobalConfig;
     use game_core::debug::WorldInspectorState;
@@ -275,6 +276,8 @@ mod manager {
                 enabled: true,
                 ..default()
             });
+
+            app.add_plugins(TilemapPlugin);
 
             app.add_plugins((
                 GameCorePlugin,

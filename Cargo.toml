@@ -84,6 +84,10 @@ features = ["egui_clipboard"]
 version = "0.31.0"
 features = ["default", "simd-stable", "debug-render-2d"]
 
+[dependencies.bevy_ecs_tilemap]
+version = "0.16.0"
+features = ["atlas"]
+
 # Tracing Subscriber for look up traces in logs and for print them
 # into a log file
 [dependencies.tracing-subscriber]
