@@ -1,11 +1,12 @@
 use bevy::prelude::*;
+use bevy::render::camera::ScalingMode;
 use bevy::render::view::RenderLayers;
 use game_core::camera::{CameraGame, CameraUi};
 use game_core::player::Player;
 use game_core::states::AppState;
 use game_core::tiled::LevelData;
 
-const PIXEL_RATIO: f32 = 4.0;
+const ZOOM: f32 = 8.0;
 
 pub struct GameCameraPlugin;
 
@@ -27,13 +28,13 @@ fn setup_game_camera(mut commands: Commands) {
             order: 0,
             ..default()
         },
-        Transform::IDENTITY,
+        Transform::from_xyz(0.0, 0.0, 1000.0),
         Msaa::Sample4,
         RenderLayers::from_layers(&[0, 1]),
         Projection::Orthographic(OrthographicProjection {
-            scale: 1.0 / PIXEL_RATIO,
-            far: -1000.0,
-            near: 1000.0,
+            scaling_mode: ScalingMode::WindowSize,
+            near: -1000.0,
+            far:  1000.0,
             ..OrthographicProjection::default_2d()
         }),
         CameraGame
@@ -42,40 +43,40 @@ fn setup_game_camera(mut commands: Commands) {
 
 #[coverage(off)]
 fn update_game_camera(
-    mut camera_query: Query<(&CameraGame, &Camera, &mut Transform), Without<Player>>,
-    player_query: Query<(&Player, &Transform), Without<CameraGame>>,
-    level_data: Res<LevelData>
+    time: Res<Time>,
+    mut q_cam: Query<(&Camera, &mut Transform, &mut Projection), (Without<Player>, With<CameraGame>)>,
+    q_player: Query<&Transform, (Without<CameraGame>, With<Player>)>,
+    level_data: Res<LevelData>,
 ) {
-    if let Ok((_, camera, mut transform)) = camera_query.single_mut() {
-        if let Ok((_, player_transform)) = player_query.single() {
-            transform.translation.x = player_transform.translation.x;
-            transform.translation.y = player_transform.translation.y;
-        }
+    let (camera, mut cam_tf, mut proj) = if let Ok(x) = q_cam.single_mut() { x } else { return };
+    let player_tf = if let Ok(x) = q_player.single() { x } else { return };
 
-        if let Some(map) = level_data.map.as_ref() {
-            if let Some(size) = camera.physical_viewport_size() {
-                let map_width = (map.width * map.tile_width) as f32;
-                let map_height = (map.height * map.tile_height) as f32;
+    let follow_strength = 6.0;
+    let dt = time.delta_secs();
+    let t = 1.0 - (-follow_strength * dt).exp();
+    let target = player_tf.translation.truncate();
+    let cam_xy = cam_tf.translation.truncate();
+    let new_xy = cam_xy + (target - cam_xy) * t;
 
-                let view_half_size = Vec2::new(size.x as f32, size.y as f32) / (2.0 * PIXEL_RATIO);
+    let (map, view) = if let (Some(m), Some(v)) = (level_data.map.as_ref(), camera.logical_viewport_size()) { (m, v) } else { return };
+    let map_w = (map.width * map.tile_width) as f32;
+    let map_h = (map.height * map.tile_height) as f32;
+    let view_w = view.x;
+    let view_h = view.y;
 
-                if transform.translation.x - view_half_size.x < 0.0 {
-                    transform.translation.x = view_half_size.x;
-                }
+    if let Projection::Orthographic(ortho) = &mut *proj {
+        let cover = (view_w / map_w).max(view_h / map_h);
+        let base = 1.0 / cover;
+        ortho.scale = base / ZOOM;
 
-                if transform.translation.x + view_half_size.x > map_width {
-                    transform.translation.x = map_width - view_half_size.x;
-                }
+        let half = Vec2::new(view_w, view_h) * ortho.scale * 0.5;
 
-                if transform.translation.y + view_half_size.y > map_height {
-                    transform.translation.y = map_height - view_half_size.y;
-                }
+        let mut p = new_xy;
+        if map_w > half.x * 2.0 { p.x = p.x.clamp(half.x, map_w - half.x) } else { p.x = map_w * 0.5; }
+        if map_h > half.y * 2.0 { p.y = p.y.clamp(half.y, map_h - half.y) } else { p.y = map_h * 0.5; }
 
-                if transform.translation.y - view_half_size.y < 0.0 {
-                    transform.translation.y = view_half_size.y;
-                }
-            }
-        }
+        cam_tf.translation.x = p.x;
+        cam_tf.translation.y = p.y;
     }
 }
 
