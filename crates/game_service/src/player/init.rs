@@ -82,7 +82,7 @@ fn init_player(
     });
 
     commands.spawn((
-        Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(1.5)),
+        Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(2.0)),
         Sprite {
             image: asset_server.load("sprites/player.png"),
             texture_atlas: Some(TextureAtlas {

@@ -6,7 +6,7 @@ use game_core::player::Player;
 use game_core::states::AppState;
 use game_core::tiled::LevelData;
 
-const ZOOM: f32 = 8.0;
+const ZOOM: f32 = 7.5;
 
 pub struct GameCameraPlugin;
 
