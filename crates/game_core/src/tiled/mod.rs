@@ -4,6 +4,7 @@ use std::path::Path;
 use std::sync::Arc;
 use bevy::asset::{AssetLoader, LoadContext};
 use bevy::asset::io::Reader;
+use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
 use bevy_ecs_tilemap::anchor::TilemapAnchor;
 use bevy_ecs_tilemap::map::TilemapId;
@@ -11,7 +12,7 @@ use bevy_ecs_tilemap::prelude::*;
 use bevy_ecs_tilemap::TilemapBundle;
 use bevy_ecs_tilemap::tiles::TileTextureIndex;
 use thiserror::Error;
-use tiled::DefaultResourceCache;
+use tiled::{DefaultResourceCache, ObjectData};
 
 pub struct TiledModule;
 
@@ -19,8 +20,22 @@ impl Plugin for TiledModule {
     fn build(&self, app: &mut App) {
         app.register_asset_loader(TiledLoader);
         app.init_asset::<TiledMap>();
+        app.init_resource::<LevelData>();
+        app.init_resource::<ObjectLayers>();
         app.add_systems(Update, process_maps);
     }
+}
+
+#[derive(Resource, Default)]
+pub struct LevelData {
+    pub map: Option<tiled::Map>,
+    pub collision_map: Vec<i32>
+}
+
+#[derive(Resource, Default)]
+pub struct ObjectLayers {
+    pub layer_data: HashMap<String, Vec<ObjectData>>,
+    pub loader_systems: HashMap<String, SystemId>
 }
 
 #[derive(TypePath, Asset)]
@@ -136,7 +151,9 @@ fn process_maps(
     mut commands: Commands,
     maps: Res<Assets<TiledMap>>,
     tile_storage_query: Query<(Entity, &mut TileStorage)>,
-    mut map_query: Query<(&TiledMapHandle, &mut TiledMapLoaded, &mut TiledLayersStorage, &TilemapRenderSettings)>
+    mut map_query: Query<(&TiledMapHandle, &mut TiledMapLoaded, &mut TiledLayersStorage, &TilemapRenderSettings)>,
+    mut object_layers: ResMut<ObjectLayers>,
+    mut level_data: ResMut<LevelData>
 ) {
     if let Ok((map_handle, mut load_state, mut layer_storage, render_settings))
         = map_query.single_mut() {
@@ -145,6 +162,7 @@ fn process_maps(
         }
 
         if let Some(tiled_map) = maps.get(&map_handle.0) {
+            level_data.map = Some(tiled_map.map.clone());
             load_state.0 = true;
 
             for layer_entity in layer_storage.storage.values() {
@@ -174,12 +192,22 @@ fn process_maps(
                     let offset_y = layer.offset_y;
 
                     match layer.layer_type() {
+                        tiled::LayerType::Objects(object_layer) => {
+                            let data: Vec<ObjectData> = object_layer.object_data().iter().cloned().collect();
+                            object_layers.layer_data.insert(layer.name.clone(), data);
+                            let system = object_layers.loader_systems[&layer.name];
+                            commands.run_system(system);
+                        }
                         tiled::LayerType::Tiles(tile_layer) => {
                             if let tiled::TileLayer::Finite(layer_data) = tile_layer {
                                 let map_size = TilemapSize {
                                     x: tiled_map.map.width,
                                     y: tiled_map.map.height
                                 };
+
+                                if layer.name.eq(&"Collision") {
+                                    level_data.collision_map = vec![0; map_size.x as usize * map_size.y as usize];
+                                }
 
                                 let grid_size = TilemapGridSize {
                                     x: tiled_map.map.tile_width as f32,
@@ -244,6 +272,10 @@ fn process_maps(
                                         ).id();
 
                                        tile_storage.set(&tile_pos, tile_entity);
+
+                                        if layer.name.eq(&"Collision") {
+                                            level_data.collision_map[(mapped_x + mapped_y * map_size.x as i32) as usize] = 1;
+                                        }
                                     }
                                 }
 

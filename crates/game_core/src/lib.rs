@@ -7,6 +7,7 @@ pub mod debug;
 pub mod camera;
 pub mod player;
 pub mod tiled;
+pub mod world;
 
 use bevy::prelude::*;
 use crate::player::PlayerModule;
