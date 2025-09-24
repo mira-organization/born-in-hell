@@ -35,3 +35,8 @@ default-features = true
 # Serde JSON for handle struct by json files
 [dependencies.serde_json]
 version = "1.0.145"
+
+# Bevy Rapier2D for initialize game physics
+[dependencies.bevy_rapier2d]
+version = "0.31.0"
+features = ["simd-stable", "debug-render-2d"]
