@@ -11,7 +11,7 @@ const GRAVITY : f32 = 0.35;
 const TERMINAL_VELOCITY : f32 = 4.0;
 const JUMP_TIME : f32 = 0.5;
 const JUMP_FORCE : f32 = 7.0;
-const SPEED : f32 = 1.85;
+const SPEED : f32 = 2.35;
 const SKIN: f32 = 0.001;
 
 pub struct PlayerInitService;

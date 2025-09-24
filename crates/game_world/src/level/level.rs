@@ -18,8 +18,11 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
     let map_handle = TiledMapHandle(asset_server.load("maps/map.tmx"));
-    commands.spawn(TiledMapBundle {
-        tiled_map: map_handle,
-        ..default()
-    });
+    commands.spawn((
+        Name::new("Level"),
+        TiledMapBundle {
+            tiled_map: map_handle,
+            ..default()
+        }
+    ));
 }
