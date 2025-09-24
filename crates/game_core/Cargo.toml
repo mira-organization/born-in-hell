@@ -28,16 +28,12 @@ default-features = true
 
 # Serde for seralize structs
 [dependencies.serde]
-version = "1.0.225"
+version = "^1.0"
 features = ["derive"]
 
 # Serde JSON for handle struct by json files
 [dependencies.serde_json]
-version = "1.0.145"
-
-# Random generated u32 / u64 / i32 / i64 etc
-[dependencies.rand]
-version = "0.9.2"
+version = "^1.0"
 
 # TOML file support for our config files
 [dependencies.toml]
@@ -64,3 +60,16 @@ features = ["Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common"]
 [target.'cfg(target_os = "macos")'.dependencies.metal]
 version = "0.32.0"
 optional = true
+
+[dependencies.bevy_ecs_tilemap]
+version = "0.16.0"
+features = ["atlas"]
+
+[dependencies.tiled]
+version = "0.15.0"
+default-features = false
+
+[dependencies.thiserror]
+version = "^2.0"
+
+

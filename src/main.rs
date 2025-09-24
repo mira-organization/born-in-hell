@@ -96,7 +96,7 @@ fn init_bevy_app(app: &mut App, config: &GlobalConfig) {
                 render_creation: RenderCreation::Automatic(create_gpu_settings(&config.graphics_config.video_backend)),
                 ..default()
             }
-        ).set(ImagePlugin::default()
+        ).set(ImagePlugin::default_nearest()
         ).set(LogPlugin {
             level: Level::DEBUG,
             filter: load_log_env_filter(),
@@ -254,7 +254,8 @@ fn load_log_env_filter() -> String {
 mod manager {
     use bevy::pbr::DirectionalLightShadowMap;
     use bevy::prelude::*;
-    use bevy_rapier3d::prelude::*;
+    use bevy_ecs_tilemap::TilemapPlugin;
+    use bevy_rapier2d::prelude::*;
     use game_core::config::GlobalConfig;
     use game_core::debug::WorldInspectorState;
     use game_core::GameCorePlugin;
@@ -275,6 +276,8 @@ mod manager {
                 enabled: true,
                 ..default()
             });
+
+            app.add_plugins(TilemapPlugin);
 
             app.add_plugins((
                 GameCorePlugin,

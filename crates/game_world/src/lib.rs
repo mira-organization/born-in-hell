@@ -1,9 +1,9 @@
 #![feature(coverage_attribute)]
 
-mod test_room;
+mod level;
 
 use bevy::prelude::*;
-use crate::test_room::TestRoomPlugin;
+use crate::level::WorldLevelPlugin;
 
 pub struct GameWorldPlugin;
 
@@ -11,7 +11,9 @@ impl Plugin for GameWorldPlugin {
     
     #[coverage(off)]
     fn build(&self, app: &mut App) {
-        app.add_plugins(TestRoomPlugin);
+        app.add_plugins(
+            WorldLevelPlugin
+        );
     }
     
 }

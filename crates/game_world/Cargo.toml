@@ -29,10 +29,20 @@ default-features = true
 
 # Rapier3D for handle world collisions and player interaction with the world.
 # The init state is in main.rs!
-[dependencies.bevy_rapier3d]
+[dependencies.bevy_rapier2d]
 version = "0.31.0"
 features = [
     "default",
     "simd-stable",
     "debug-render-3d"
 ]
+
+[dependencies.bevy_ecs_tilemap]
+version = "0.16.0"
+features = ["atlas"]
+
+[dependencies.tiled]
+version = "0.15.0"
+default-features = false
+
+
