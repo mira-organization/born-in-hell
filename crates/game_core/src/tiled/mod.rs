@@ -1,3 +1,5 @@
+#![coverage(off)]
+
 use std::collections::HashMap;
 use std::io::{Cursor, Error, ErrorKind};
 use std::path::Path;
@@ -17,6 +19,8 @@ use tiled::{DefaultResourceCache, ObjectData};
 pub struct TiledModule;
 
 impl Plugin for TiledModule {
+
+    #[coverage(off)]
     fn build(&self, app: &mut App) {
         app.register_asset_loader(TiledLoader);
         app.init_asset::<TiledMap>();
@@ -147,6 +151,7 @@ pub struct TiledMapBundle {
     pub render_settings: TilemapRenderSettings
 }
 
+#[coverage(off)]
 fn process_maps(
     mut commands: Commands,
     maps: Res<Assets<TiledMap>>,

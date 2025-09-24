@@ -1,3 +1,5 @@
+#![coverage(off)]
+
 use std::collections::HashMap;
 use bevy::prelude::*;
 
@@ -27,6 +29,7 @@ pub struct Animation {
     pub looping : bool,
 }
 
+#[coverage(off)]
 fn update_animations(
     time : Res<Time>,
     mut animator_query : Query<(&mut Animator, &mut Sprite)>

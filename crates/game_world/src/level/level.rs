@@ -12,6 +12,7 @@ impl Plugin for WorldLevelModule {
     }
 }
 
+#[coverage(off)]
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,

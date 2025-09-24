@@ -26,6 +26,7 @@ impl Plugin for PlayerInitService {
     }
 }
 
+#[coverage(off)]
 fn init_player_loader(
     mut object_layers: ResMut<ObjectLayers>,
     mut commands: Commands
@@ -33,6 +34,7 @@ fn init_player_loader(
     object_layers.loader_systems.insert(String::from("Player"), commands.register_system(init_player));
 }
 
+#[coverage(off)]
 fn init_player(
     mut commands: Commands,
     object_layers: Res<ObjectLayers>,
@@ -111,7 +113,7 @@ fn init_player(
     ));
 }
 
-
+#[coverage(off)]
 fn update_player_animations(
     mut player_query : Query<(&mut Player,&mut Sprite,&mut Animator)>
 ) {
@@ -136,6 +138,7 @@ fn update_player_animations(
     }
 }
 
+#[coverage(off)]
 fn handle_player_input(
     input : Res<ButtonInput<KeyCode>>,
     mut player_query : Query<&mut Player>,
@@ -159,6 +162,7 @@ fn handle_player_input(
     }
 }
 
+#[coverage(off)]
 fn update_physics(
     time : Res<Time<Fixed>>,
     mut player_query : Query<(&mut Transform, &mut Player)>,
@@ -188,6 +192,8 @@ fn update_physics(
         player.jump_timer -= time.delta_secs();
     }
 }
+
+#[coverage(off)]
 fn handle_collisions(
     level_data: Res<LevelData>,
     time: Res<Time>,

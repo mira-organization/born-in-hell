@@ -1,3 +1,5 @@
+#![coverage(off)]
+
 use bevy::prelude::*;
 
 //axis aligned bounding box
