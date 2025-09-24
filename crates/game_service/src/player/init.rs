@@ -8,7 +8,7 @@ use game_core::tiled::{LevelData, ObjectLayers};
 use game_core::world::tiled_to_world_position;
 
 const GRAVITY : f32 = 300.0;
-const JUMP_TIME : f32 = 0.5;
+const JUMP_TIME : f32 = 0.3;
 const JUMP_FORCE : f32 = 250.0;
 const SPEED : f32 = 200.0;
 
@@ -136,9 +136,9 @@ fn init_player(
         RigidBody::KinematicPositionBased,
         Collider::capsule_y(half_height.max(1.0), radius.max(1.0)),
         KinematicCharacterController {
-            offset: CharacterLength::Absolute(0.01),
+            offset: CharacterLength::Absolute(0.02),
             slide: true,
-            snap_to_ground: Some(CharacterLength::Absolute(2.0)),
+            snap_to_ground: Some(CharacterLength::Absolute(1.5)),
             filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
             ..default()
         }
@@ -248,7 +248,6 @@ fn build_tile_colliders_once(
     if built.0 { return; }
     let Some(map) = level_data.map.as_ref() else { return; };
     if level_data.collision_map.is_empty() { return; }
-    debug!("Hello");
 
     built.0 = true;
     let tile_width = map.tile_width as f32;
