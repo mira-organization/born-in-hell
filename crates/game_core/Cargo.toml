@@ -28,16 +28,12 @@ default-features = true
 
 # Serde for seralize structs
 [dependencies.serde]
-version = "1.0.225"
+version = "^1.0"
 features = ["derive"]
 
 # Serde JSON for handle struct by json files
 [dependencies.serde_json]
-version = "1.0.145"
-
-# Random generated u32 / u64 / i32 / i64 etc
-[dependencies.rand]
-version = "0.9.2"
+version = "^1.0"
 
 # TOML file support for our config files
 [dependencies.toml]
@@ -74,16 +70,6 @@ version = "0.15.0"
 default-features = false
 
 [dependencies.thiserror]
-version = "1.0"
-
-[dependencies.bytemuck]
-version = "1.23.2"
-
-[dependencies.serde_spanned]
-version = "1.0.2"
-
-[dependencies.crevice]
-version = "0.18.0"
-
+version = "^2.0"
 
 

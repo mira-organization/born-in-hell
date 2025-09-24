@@ -1,12 +1,11 @@
 use bevy::prelude::*;
 use bevy::render::camera::ScalingMode;
 use bevy::render::view::RenderLayers;
+use bevy::window::PrimaryWindow;
 use game_core::camera::{CameraGame, CameraUi};
 use game_core::player::Player;
 use game_core::states::AppState;
 use game_core::tiled::LevelData;
-
-const ZOOM: f32 = 2.0; // 4k = 8.0
 
 pub struct GameCameraPlugin;
 
@@ -42,14 +41,32 @@ fn setup_game_camera(mut commands: Commands) {
 }
 
 #[coverage(off)]
+fn auto_zoom(win: &Window) -> f32 {
+    let w = win.resolution.physical_width();
+    let h = win.resolution.physical_height();
+
+    if w >= 3840 || h >= 2160 {
+        8.0
+    } else if w >= 2560 || h >= 1440 {
+        4.0
+    } else if w >= 1280 || h >= 720 {
+        2.0
+    } else {
+        1.5
+    }
+}
+
+#[coverage(off)]
 fn update_game_camera(
     time: Res<Time>,
     mut q_cam: Query<(&Camera, &mut Transform, &mut Projection), (Without<Player>, With<CameraGame>)>,
     q_player: Query<&Transform, (Without<CameraGame>, With<Player>)>,
     level_data: Res<LevelData>,
+    q_win: Query<&Window, With<PrimaryWindow>>, // <— NEU
 ) {
     let (camera, mut cam_tf, mut proj) = if let Ok(x) = q_cam.single_mut() { x } else { return };
     let player_tf = if let Ok(x) = q_player.single() { x } else { return };
+    let win = if let Ok(w) = q_win.single() { w } else { return };
 
     let follow_strength = 6.0;
     let dt = time.delta_secs();
@@ -58,18 +75,24 @@ fn update_game_camera(
     let cam_xy = cam_tf.translation.truncate();
     let new_xy = cam_xy + (target - cam_xy) * t;
 
-    let (map, view) = if let (Some(m), Some(v)) = (level_data.map.as_ref(), camera.logical_viewport_size()) { (m, v) } else { return };
+    let (map, view) = if let (Some(m), Some(v)) = (level_data.map.as_ref(), camera.logical_viewport_size()) {
+        (m, v)
+    } else {
+        return;
+    };
     let map_w = (map.width * map.tile_width) as f32;
     let map_h = (map.height * map.tile_height) as f32;
     let view_w = view.x;
     let view_h = view.y;
 
-    if let Projection::Orthographic(ortho) = &mut *proj {
+    let zoom = auto_zoom(win);
+
+    if let Projection::Orthographic(orthographic) = &mut *proj {
         let cover = (view_w / map_w).max(view_h / map_h);
         let base = 1.0 / cover;
-        ortho.scale = base / ZOOM;
+        orthographic.scale = base / zoom;
 
-        let half = Vec2::new(view_w, view_h) * ortho.scale * 0.5;
+        let half = Vec2::new(view_w, view_h) * orthographic.scale * 0.5;
 
         let mut p = new_xy;
         if map_w > half.x * 2.0 { p.x = p.x.clamp(half.x, map_w - half.x) } else { p.x = map_w * 0.5; }
