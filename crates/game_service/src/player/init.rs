@@ -12,6 +12,7 @@ const TERMINAL_VELOCITY : f32 = 4.0;
 const JUMP_TIME : f32 = 0.5;
 const JUMP_FORCE : f32 = 7.0;
 const SPEED : f32 = 1.85;
+const SKIN: f32 = 0.001;
 
 pub struct PlayerInitService;
 
@@ -82,7 +83,7 @@ fn init_player(
     });
 
     commands.spawn((
-        Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(2.0)),
+        Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(1.0)),
         Sprite {
             image: asset_server.load("sprites/player.png"),
             texture_atlas: Some(TextureAtlas {
@@ -188,51 +189,108 @@ fn update_physics(
     }
 }
 fn handle_collisions(
-    level_data : Res<LevelData>,
-    mut player_query : Query<(&mut Transform, &mut Player)>,
+    level_data: Res<LevelData>,
+    time: Res<Time>,
+    mut q: Query<(&mut Transform, &mut Player)>,
 ) {
-    for(mut transform, mut player) in player_query.iter_mut() {
-        if let Some(map) = level_data.map.as_ref() {
-            let mut player_aabb = AABB::new(transform.translation.xy(), player.half_size);
-            let tile_size = map.tile_width as f32;
+    let Some(map) = level_data.map.as_ref() else { return };
+    if level_data.collision_map.is_empty() { return }
 
-            let left_tile = f32::floor(player_aabb.left() / tile_size) as usize;
-            let right_tile = f32::ceil(player_aabb.right() / tile_size) as usize;
-            let top_tile = map.height as usize - f32::ceil(player_aabb.top() / tile_size) as usize;
-            let bottom_tile = map.height as usize - f32::floor(player_aabb.bottom() / tile_size) as usize;
+    let tile_w = map.tile_width as f32;
+    let tile_h = map.tile_height as f32;
+    let map_w = map.width as usize;
+    let map_h = map.height as usize;
+    let dt = time.delta_secs();
 
-            player.grounded = false;
-            for x in left_tile..right_tile {
-                for y in top_tile..bottom_tile  {
-                    let tile_bounds = &AABB::new(
-                        Vec2::new(
-                            x as f32 * tile_size,
-                            (map.height as usize - 1 - y) as f32 * tile_size
-                        ) + Vec2::new(tile_size,tile_size) / 2.0,
-                        Vec2::new(tile_size,tile_size) / 2.0,
-                    );
+    for (mut tf, mut player) in q.iter_mut() {
+        let mut pos = tf.translation.xy();
+        let mut vel = player.velocity;
+        let size = player.half_size;
 
-                    let depth = player_aabb.get_intersection_depth(tile_bounds);
-                    let abs_depth = depth.abs();
-                    if depth != Vec2::ZERO {
-                        if level_data.collision_map.is_empty() { continue }
+        pos.x += vel.x * dt;
+        let mut aabb = AABB::new(pos, size);
 
-                        if level_data.collision_map[x + y * map.width as usize] == 1 {
-                            if abs_depth.y < abs_depth.x {
-                                transform.translation.y += depth.y;
-                                if depth.y > 0. {
-                                    player.grounded = true;
-                                }
-                            }
-                            else {
-                                transform.translation.x += depth.x;
-                            }
-                            player_aabb = AABB::new(transform.translation.xy(), player.half_size);
-                        }
-                    }
+        let mut left   = ((aabb.left()  ) / tile_w).floor() as isize;
+        let mut right  = ((aabb.right() ) / tile_w).ceil()  as isize;
+        let mut bottom = ((aabb.bottom()) / tile_h).floor() as isize;
+        let mut top    = ((aabb.top()   ) / tile_h).ceil()  as isize;
+
+        left   = left.max(0).min(map_w as isize - 1);
+        right  = right.max(0).min(map_w as isize);
+        bottom = bottom.max(0).min(map_h as isize - 1);
+        top    = top.max(0).min(map_h as isize);
+
+        let mut corr_x = 0.0;
+        for x in left..right {
+            for y in bottom..top {
+                let idx_y = (map_h as isize - 1 - y) as usize;
+                let idx = x as usize + idx_y * map_w;
+                if level_data.collision_map[idx] != 1 { continue }
+
+                let tile_center = Vec2::new(
+                    (x as f32 + 0.5) * tile_w,
+                    (y as f32 + 0.5) * tile_h,
+                );
+                let tile_aabb = AABB::new(tile_center, Vec2::new(tile_w, tile_h) * 0.5);
+
+                let depth = aabb.get_intersection_depth(&tile_aabb);
+                if depth == Vec2::ZERO { continue }
+
+                if depth.x.abs() < depth.y.abs() {
+                    corr_x += depth.x.signum() * (depth.x.abs() + SKIN);
+                    aabb.center.x += depth.x.signum() * (depth.x.abs() + SKIN);
                 }
             }
-
         }
+        pos.x += corr_x;
+        if corr_x != 0.0 { vel.x = 0.0; }
+
+        pos.y += vel.y * dt;
+        aabb = AABB::new(pos, size);
+
+        let mut left   = ((aabb.left()  ) / tile_w).floor() as isize;
+        let mut right  = ((aabb.right() ) / tile_w).ceil()  as isize;
+        let mut bottom = ((aabb.bottom()) / tile_h).floor() as isize;
+        let mut top    = ((aabb.top()   ) / tile_h).ceil()  as isize;
+
+        left   = left.max(0).min(map_w as isize - 1);
+        right  = right.max(0).min(map_w as isize);
+        bottom = bottom.max(0).min(map_h as isize - 1);
+        top    = top.max(0).min(map_h as isize);
+
+        let mut corr_y = 0.0;
+        let falling = vel.y <= 0.0;
+        let mut grounded = false;
+
+        for x in left..right {
+            for y in bottom..top {
+                let idx_y = (map_h as isize - 1 - y) as usize;
+                let idx = x as usize + idx_y * map_w;
+                if level_data.collision_map[idx] != 1 { continue }
+
+                let tile_center = Vec2::new(
+                    (x as f32 + 0.5) * tile_w,
+                    (y as f32 + 0.5) * tile_h,
+                );
+                let tile_aabb = AABB::new(tile_center, Vec2::new(tile_w, tile_h) * 0.5);
+
+                let depth = aabb.get_intersection_depth(&tile_aabb);
+                if depth == Vec2::ZERO { continue }
+
+                if depth.y.abs() <= depth.x.abs() {
+                    let push = depth.y.signum() * (depth.y.abs() + SKIN);
+                    corr_y += push;
+                    aabb.center.y += push;
+                    if falling && push > 0.0 { grounded = true; }
+                }
+            }
+        }
+        pos.y += corr_y;
+        if corr_y != 0.0 { vel.y = 0.0; }
+
+        tf.translation.x = pos.x;
+        tf.translation.y = pos.y;
+        player.velocity = vel;
+        player.grounded = grounded;
     }
 }
