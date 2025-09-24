@@ -32,6 +32,12 @@ fn init_player_loader(
     mut commands: Commands
 ) {
     object_layers.loader_systems.insert(String::from("Player"), commands.register_system(init_player));
+    object_layers.loader_systems.insert(String::from("Interact"), commands.register_system(door_test));
+}
+
+#[coverage(off)]
+fn door_test() {
+    info!("Door test");
 }
 
 #[coverage(off)]

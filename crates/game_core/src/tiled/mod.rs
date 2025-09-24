@@ -213,8 +213,13 @@ fn process_maps(
                         tiled::LayerType::Objects(object_layer) => {
                             let data: Vec<ObjectData> = object_layer.object_data().iter().cloned().collect();
                             object_layers.layer_data.insert(layer.name.clone(), data);
-                            let system = object_layers.loader_systems[&layer.name];
-                            commands.run_system(system);
+                            if object_layers.loader_systems.contains_key(&layer.name) {
+                                let system = object_layers.loader_systems[&layer.name];
+                                commands.run_system(system);
+                                debug!("Loaded system for layer {}", layer.name);
+                            } else {
+                                warn!("No System fond for ( {:?} )", layer.name);
+                            }
                         }
                         // Background Layer
                         tiled::LayerType::Image(image_layer) => {
