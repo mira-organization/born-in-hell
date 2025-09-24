@@ -7,7 +7,7 @@ use game_core::states::AppState;
 use game_core::tiled::{LevelData, ObjectLayers};
 use game_core::world::tiled_to_world_position;
 
-const GRAVITY : f32 = 0.2;
+const GRAVITY : f32 = 0.35;
 const TERMINAL_VELOCITY : f32 = 4.0;
 const JUMP_TIME : f32 = 0.5;
 const JUMP_FORCE : f32 = 7.0;
