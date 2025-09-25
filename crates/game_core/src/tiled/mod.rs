@@ -8,6 +8,7 @@ use bevy::asset::{AssetLoader, LoadContext};
 use bevy::asset::io::Reader;
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
+use bevy::sprite::Anchor;
 use bevy_ecs_tilemap::anchor::TilemapAnchor;
 use bevy_ecs_tilemap::map::TilemapId;
 use bevy_ecs_tilemap::prelude::*;
@@ -33,7 +34,16 @@ impl Plugin for TiledModule {
 #[derive(Resource, Default)]
 pub struct LevelData {
     pub map: Option<tiled::Map>,
-    pub collision_map: Vec<i32>
+    pub collision_map: Vec<i32>,
+    pub image_layers: Vec<ImageLayerData>,
+}
+
+#[derive(Clone)]
+pub struct ImageLayerData {
+    pub name: String,
+    pub texture: Handle<Image>,
+    pub color: Color,
+    pub transform: Transform,
 }
 
 #[derive(Resource, Default)]
@@ -158,7 +168,8 @@ fn process_maps(
     tile_storage_query: Query<(Entity, &mut TileStorage)>,
     mut map_query: Query<(&TiledMapHandle, &mut TiledMapLoaded, &mut TiledLayersStorage, &TilemapRenderSettings)>,
     mut object_layers: ResMut<ObjectLayers>,
-    mut level_data: ResMut<LevelData>
+    mut level_data: ResMut<LevelData>,
+    asset_server: Res<AssetServer>,
 ) {
     if let Ok((map_handle, mut load_state, mut layer_storage, render_settings))
         = map_query.single_mut() {
@@ -168,6 +179,7 @@ fn process_maps(
 
         if let Some(tiled_map) = maps.get(&map_handle.0) {
             level_data.map = Some(tiled_map.map.clone());
+            level_data.image_layers.clear();
             load_state.0 = true;
 
             for layer_entity in layer_storage.storage.values() {
@@ -197,12 +209,109 @@ fn process_maps(
                     let offset_y = layer.offset_y;
 
                     match layer.layer_type() {
+                        // Object Layer
                         tiled::LayerType::Objects(object_layer) => {
                             let data: Vec<ObjectData> = object_layer.object_data().iter().cloned().collect();
                             object_layers.layer_data.insert(layer.name.clone(), data);
-                            let system = object_layers.loader_systems[&layer.name];
-                            commands.run_system(system);
+                            if object_layers.loader_systems.contains_key(&layer.name) {
+                                let system = object_layers.loader_systems[&layer.name];
+                                commands.run_system(system);
+                                debug!("Loaded system for layer {}", layer.name);
+                            } else {
+                                warn!("No System fond for ( {:?} )", layer.name);
+                            }
                         }
+                        // Background Layer
+                        tiled::LayerType::Image(image_layer) => {
+                            if let Some(img) = &image_layer.image {
+                                if let Some(path) = img.source.to_str() {
+                                    let texture: Handle<Image> = asset_server.load(path);
+
+                                    let opacity = layer.opacity;
+                                    let mut color = Color::WHITE.with_alpha(opacity);
+                                    if let Some(tint) = layer.tint_color {
+                                        let a = tint.alpha; let r = tint.red; let g = tint.green; let b = tint.blue;
+                                        color = Color::srgba(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0,
+                                                             (a as f32 / 255.0) * opacity);
+                                    }
+
+                                    let map_px_w = tiled_map.map.width  as f32 * tiled_map.map.tile_width  as f32;
+                                    let map_px_h = tiled_map.map.height as f32 * tiled_map.map.tile_height as f32;
+
+                                    let iw = img.width  as f32;
+                                    let ih = img.height as f32;
+
+                                    let (iw, ih) = if iw > 0.0 && ih > 0.0 {
+                                        (iw, ih)
+                                    } else {
+                                        (0.0, 0.0)
+                                    };
+
+                                    let parent = commands.spawn((
+                                        Name::new(format!("ImageLayer: {}", layer.name)),
+                                        Sprite {
+                                            anchor: Anchor::BottomLeft,
+                                            image: texture.clone(),
+                                            color,
+                                            ..Default::default()
+                                        },
+                                        Transform::from_xyz(
+                                            layer.offset_x,
+                                            layer.offset_y,
+                                            layer_index as f32,
+                                        ),
+                                        GlobalTransform::IDENTITY,
+                                        Visibility::Visible,
+                                        InheritedVisibility::VISIBLE,
+                                    ))
+                                        .id();
+
+                                    if (image_layer.repeat_x || image_layer.repeat_y) && iw > 0.0 && ih > 0.0 {
+                                        let tiles_x = if image_layer.repeat_x {
+                                            ((map_px_w - layer.offset_x).max(0.0) / iw).ceil().max(1.0) as u32
+                                        } else { 1 };
+
+                                        let tiles_y = if image_layer.repeat_y {
+                                            ((map_px_h - layer.offset_y).max(0.0) / ih).ceil().max(1.0) as u32
+                                        } else { 1 };
+
+                                        for iy in 0..tiles_y {
+                                            for ix in 0..tiles_x {
+                                                if ix == 0 && iy == 0 { continue; }
+                                                let dx = iw * ix as f32;
+                                                let dy = ih * iy as f32;
+
+                                                commands.spawn((
+                                                    Name::new("ImageTile"),
+                                                    Sprite {
+                                                        anchor: Anchor::BottomLeft,
+                                                        image: texture.clone(),
+                                                        color,
+                                                        ..Default::default()
+                                                    },
+                                                    Transform::from_xyz(
+                                                        (layer.offset_x + dx) - layer.offset_x,
+                                                        (layer.offset_y + dy) - layer.offset_y,
+                                                        layer_index as f32,
+                                                    ),
+                                                    GlobalTransform::IDENTITY,
+                                                    Visibility::Visible,
+                                                    InheritedVisibility::VISIBLE,
+                                                    ChildOf(parent)
+                                                ));
+                                            }
+                                        }
+                                    }
+
+                                    layer_storage.storage.insert(layer_index as u32, parent);
+                                } else {
+                                    warn!("Image layer '{}' is not Supported.", layer.name);
+                                }
+                            } else {
+                                warn!("Image layer '{}' has no image yet!.", layer.name);
+                            }
+                        }
+                        // Tile Layer
                         tiled::LayerType::Tiles(tile_layer) => {
                             if let tiled::TileLayer::Finite(layer_data) = tile_layer {
                                 let map_size = TilemapSize {

@@ -46,11 +46,11 @@ fn auto_zoom(win: &Window) -> f32 {
     let h = win.resolution.physical_height();
 
     if w >= 3840 || h >= 2160 {
-        8.0
-    } else if w >= 2560 || h >= 1440 {
-        4.0
-    } else if w >= 1280 || h >= 720 {
         2.0
+    } else if w >= 2560 || h >= 1440 {
+        2.0
+    } else if w >= 1280 || h >= 720 {
+        1.75
     } else {
         1.5
     }

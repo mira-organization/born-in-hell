@@ -271,7 +271,7 @@ mod manager {
 
         #[coverage(off)]
         fn build(&self, app: &mut App) {
-            app.add_plugins(RapierPhysicsPlugin::<NoUserData>::default());
+            app.add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0));
             app.add_plugins(RapierDebugRenderPlugin {
                 enabled: true,
                 ..default()

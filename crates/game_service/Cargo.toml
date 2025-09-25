@@ -16,10 +16,6 @@ path = "src/lib.rs"
 [dependencies.game_core]
 path = "../game_core"
 
-# Game logic for the services. This crate gives only functional methods.
-[dependencies.game_logic]
-path = "../game_logic"
-
 
 ##############################################
 #               Dependencies                 #
@@ -32,6 +28,11 @@ path = "../game_logic"
 version = "0.16.1"
 default-features = true
 
-# Serde JSON for handle struct by json files
-[dependencies.serde_json]
-version = "1.0.145"
+# Bevy Rapier2D for initialize game physics
+[dependencies.bevy_rapier2d]
+version = "0.31.0"
+features = ["simd-stable", "debug-render-2d"]
+
+[dependencies.tiled]
+version = "0.15.0"
+default-features = false
