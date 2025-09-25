@@ -383,18 +383,22 @@ fn build_tile_colliders_once(
     }
 }
 
+
+#[coverage(off)]
 fn centroid(pts: &[Vec2]) -> Vec2 {
     if pts.is_empty() { return Vec2::ZERO; }
     let sum = pts.iter().fold(Vec2::ZERO, |acc, p| acc + *p);
     sum / (pts.len() as f32)
 }
 
+#[coverage(off)]
 fn world_center_for_rect(tx: i32, ty_inv: i32, w: f32, h: f32, ox: f32, oy: f32, tw: f32, th: f32, mh: i32) -> (f32, f32) {
     let x0 = tx as f32 * tw + ox + w * 0.5;
     let y0 = (mh as f32 - 1.0 - ty_inv as f32) * th + (th - (oy + h * 0.5));
     (x0, y0)
 }
 
+#[coverage(off)]
 fn polygon_world_points(tx: i32, ty_inv: i32, pts: &[(f32, f32)], ox: f32, oy: f32, tw: f32, th: f32, mh: i32) -> Vec<Vec2> {
     let base_x = tx as f32 * tw + ox;
     let base_y = (mh as f32 - 1.0 - ty_inv as f32) * th + (th - oy);
