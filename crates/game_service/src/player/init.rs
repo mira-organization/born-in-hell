@@ -315,15 +315,16 @@ fn build_tile_colliders_once(
                                     spawned_any = true;
                                 }
                                 ObjectShape::Polygon { points } => {
-                                    let poly = polygon_world_points(tx, ty_inv, points, obj.x, obj.y, tw, th, mh);
-                                    if poly.len() >= 3 {
-                                        if let Some(ch) = Collider::convex_hull(&poly) {
-                                            let (cx, cy) = world_center_tile(tx, ty_inv, tw, th, mh);
+                                    let world = polygon_world_points(tx, ty_inv, points, obj.x, obj.y, tw, th, mh);
+                                    if world.len() >= 3 {
+                                        let center = centroid(&world);
+                                        let local: Vec<Vec2> = world.iter().map(|p| *p - center).collect();
+                                        if let Some(ch) = Collider::convex_hull(&local) {
                                             commands.spawn((
                                                 Name::new("TilePoly"),
                                                 RigidBody::Fixed,
                                                 ch,
-                                                Transform::from_xyz(cx, cy, 0.0),
+                                                Transform::from_xyz(center.x, center.y, 0.0),
                                                 GlobalTransform::IDENTITY,
                                                 Visibility::Visible,
                                                 InheritedVisibility::VISIBLE,
@@ -335,21 +336,22 @@ fn build_tile_colliders_once(
                                     }
                                 }
                                 ObjectShape::Polyline { points } => {
-                                    let line = polygon_world_points(tx, ty_inv, points, obj.x, obj.y, tw, th, mh);
-                                    if line.len() >= 2 {
-                                        let (cx, cy) = world_center_tile(tx, ty_inv, tw, th, mh);
+                                    let world = polygon_world_points(tx, ty_inv, points, obj.x, obj.y, tw, th, mh);
+                                    if world.len() >= 2 {
+                                        let center = centroid(&world);
+                                        let local: Vec<Vec2> = world.iter().map(|p| *p - center).collect();
                                         commands.spawn((
                                             Name::new("TilePolyline"),
                                             RigidBody::Fixed,
-                                            Collider::polyline(line, None),
-                                            Transform::from_xyz(cx, cy, 0.0),
+                                            Collider::polyline(local, None),
+                                            Transform::from_xyz(center.x, center.y, 0.0),
                                             GlobalTransform::IDENTITY,
                                             Visibility::Visible,
                                             InheritedVisibility::VISIBLE,
                                             ChildOf(parent),
                                         ));
-                                        info!("Polyline");
                                         spawned_any = true;
+                                        info!("Polyline");
                                     }
                                 }
                                 _ => {}
@@ -377,11 +379,10 @@ fn build_tile_colliders_once(
     }
 }
 
-fn world_center_tile(x: i32, y_inv: i32, tw: f32, th: f32, mh: i32) -> (f32, f32) {
-    let cx = (x as f32 + 0.5) * tw;
-    let y = mh - 1 - y_inv;
-    let cy = (y as f32 + 0.5) * th;
-    (cx, cy)
+fn centroid(pts: &[Vec2]) -> Vec2 {
+    if pts.is_empty() { return Vec2::ZERO; }
+    let sum = pts.iter().fold(Vec2::ZERO, |acc, p| acc + *p);
+    sum / (pts.len() as f32)
 }
 
 fn world_center_for_rect(tx: i32, ty_inv: i32, w: f32, h: f32, ox: f32, oy: f32, tw: f32, th: f32, mh: i32) -> (f32, f32) {
