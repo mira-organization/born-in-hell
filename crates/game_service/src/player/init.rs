@@ -137,9 +137,17 @@ fn init_player(
         RigidBody::KinematicPositionBased,
         Collider::capsule_y(half_height.max(1.0), radius.max(1.0)),
         KinematicCharacterController {
+            up: Vec2::Y,
             offset: CharacterLength::Absolute(0.02),
             slide: true,
-            snap_to_ground: Some(CharacterLength::Absolute(1.5)),
+            snap_to_ground: Some(CharacterLength::Absolute(4.0)),
+            autostep: Some(CharacterAutostep {
+                max_height: CharacterLength::Absolute(6.0),
+                min_width: CharacterLength::Absolute(8.0),
+                include_dynamic_bodies: false
+            }),
+            max_slope_climb_angle: 55f32.to_radians(),
+            min_slope_slide_angle: 65f32.to_radians(),
             filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
             ..default()
         }
@@ -295,7 +303,6 @@ fn build_tile_colliders_once(
                                         InheritedVisibility::VISIBLE,
                                         ChildOf(parent),
                                     ));
-                                    info!("Rect");
                                     spawned_any = true;
                                 }
                                 ObjectShape::Ellipse { width, height } => {
@@ -311,7 +318,6 @@ fn build_tile_colliders_once(
                                         InheritedVisibility::VISIBLE,
                                         ChildOf(parent),
                                     ));
-                                    info!("Ellipse");
                                     spawned_any = true;
                                 }
                                 ObjectShape::Polygon { points } => {
@@ -331,7 +337,6 @@ fn build_tile_colliders_once(
                                                 ChildOf(parent),
                                             ));
                                             spawned_any = true;
-                                            info!("Polygon");
                                         }
                                     }
                                 }
@@ -351,10 +356,9 @@ fn build_tile_colliders_once(
                                             ChildOf(parent),
                                         ));
                                         spawned_any = true;
-                                        info!("Polyline");
                                     }
                                 }
-                                _ => {}
+                                _ => { warn!("Unhandled collision shape"); }
                             }
                         }
                     }

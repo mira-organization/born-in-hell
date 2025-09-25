@@ -8,7 +8,6 @@ pub mod camera;
 pub mod player;
 pub mod tiled;
 pub mod world;
-pub mod aabb;
 pub mod animation;
 
 use bevy::prelude::*;
