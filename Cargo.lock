@@ -2564,10 +2564,12 @@ name = "game_service"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_ecs_tilemap",
  "bevy_rapier2d",
  "game_core",
  "game_logic",
  "serde_json",
+ "tiled",
 ]
 
 [[package]]

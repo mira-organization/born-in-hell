@@ -40,3 +40,11 @@ version = "1.0.145"
 [dependencies.bevy_rapier2d]
 version = "0.31.0"
 features = ["simd-stable", "debug-render-2d"]
+
+[dependencies.bevy_ecs_tilemap]
+version = "0.16.0"
+features = ["atlas"]
+
+[dependencies.tiled]
+version = "0.15.0"
+default-features = false
