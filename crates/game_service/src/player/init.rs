@@ -39,13 +39,13 @@ fn init_player_loader(
     mut object_layers: ResMut<ObjectLayers>,
     mut commands: Commands
 ) {
-    object_layers.loader_systems.insert(String::from("Player"), commands.register_system(init_player));
+    object_layers.loader_systems.insert(String::from("Entities"), commands.register_system(init_player));
     object_layers.loader_systems.insert(String::from("Interact"), commands.register_system(door_test));
 }
 
 #[coverage(off)]
 fn door_test() {
-    info!("Door test");
+    info!("Door Test");
 }
 
 #[coverage(off)]
@@ -56,102 +56,103 @@ fn init_player(
     level_data: Res<LevelData>,
     asset_server: Res<AssetServer>,
 ) {
-    let object_data = object_layers.layer_data["Player"].clone();
-    let object = &object_data[0];
-    let map = level_data.map.as_ref().unwrap();
+    if let Some(object) = object_layers.get_data("Entities", "Player Position") {
+        let map = level_data.map.as_ref().unwrap();
 
-    let player_size = Vec2::new(13.0,38.0);
+        let player_size = Vec2::new(13.0, 38.0);
 
-    let position = tiled_to_world_position(Vec2::new(object.x,object.y),map) + player_size / 2.0;
-    let frame_count = 19;
-    let frame_size = UVec2::new(24,38);
+        let position = tiled_to_world_position(Vec2::new(object.x, object.y), map) + player_size / 2.0;
+        let frame_count = 19;
+        let frame_size = UVec2::new(24, 38);
 
-    let layout = TextureAtlasLayout::from_grid(
-        frame_size,
-        frame_count,
-        1,
-        None,
-        None,
-    );
-    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+        let layout = TextureAtlasLayout::from_grid(
+            frame_size,
+            frame_count,
+            1,
+            None,
+            None,
+        );
+        let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
-    let mut animations = HashMap::new();
+        let mut animations = HashMap::new();
 
-    animations.insert("idle".to_string(),Animation{
-        start: 1,
-        end : 8,
-        frame_duration : 0.1,
-        looping : true,
-    });
+        animations.insert("idle".to_string(), Animation {
+            start: 1,
+            end: 8,
+            frame_duration: 0.1,
+            looping: true,
+        });
 
-    animations.insert("run".to_string(),Animation{
-        start: 9,
-        end : 14,
-        frame_duration : 0.1,
-        looping : true,
-    });
+        animations.insert("run".to_string(), Animation {
+            start: 9,
+            end: 14,
+            frame_duration: 0.1,
+            looping: true,
+        });
 
-    animations.insert("jump".to_string(),Animation {
-        start: 16,
-        end : 19,
-        frame_duration : 0.1,
-        looping : false,
-    });
+        animations.insert("jump".to_string(), Animation {
+            start: 16,
+            end: 19,
+            frame_duration: 0.1,
+            looping: false,
+        });
 
 
-    let height = player_size.y;
-    let width = player_size.x;
-    let radius = width * 0.5;
-    let half_height = (height * 0.5) - radius;
+        let height = player_size.y;
+        let width = player_size.x;
+        let radius = width * 0.5;
+        let half_height = (height * 0.5) - radius;
 
-    commands.spawn((
-        Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(1.0)),
-        GlobalTransform::IDENTITY,
-        Visibility::Visible,
-        InheritedVisibility::VISIBLE,
-        Sprite {
-            image: asset_server.load("sprites/player.png"),
-            texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout,
-                index: 0,
-            }),
-            ..Default::default()
-        },
-        Animator {
-            animation: "idle".to_string(),
-            animations,
-            ..Default::default()
-        },
-        Player {
-            jump_time : JUMP_TIME,
-            jump_timer : 0.0,
-            jump_force : JUMP_FORCE,
-            speed : SPEED,
-            released_jump : false,
-            horizontal : 0,
-            grounded : false,
-            velocity : Vec2::new(0.,-0.1),
-            half_size : player_size / 2.0,
-        },
-
-        RigidBody::KinematicPositionBased,
-        Collider::capsule_y(half_height.max(1.0), radius.max(1.0)),
-        KinematicCharacterController {
-            up: Vec2::Y,
-            offset: CharacterLength::Absolute(0.02),
-            slide: true,
-            snap_to_ground: Some(CharacterLength::Absolute(4.0)),
-            autostep: Some(CharacterAutostep {
-                max_height: CharacterLength::Absolute(6.0),
-                min_width: CharacterLength::Absolute(8.0),
-                include_dynamic_bodies: false
-            }),
-            max_slope_climb_angle: 55f32.to_radians(),
-            min_slope_slide_angle: 65f32.to_radians(),
-            filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
-            ..default()
-        }
-    ));
+        commands.spawn((
+            Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(1.0)),
+            GlobalTransform::IDENTITY,
+            Visibility::Visible,
+            InheritedVisibility::VISIBLE,
+            Sprite {
+                image: asset_server.load("sprites/player.png"),
+                texture_atlas: Some(TextureAtlas {
+                    layout: texture_atlas_layout,
+                    index: 0,
+                }),
+                ..Default::default()
+            },
+            Animator {
+                animation: "idle".to_string(),
+                animations,
+                ..Default::default()
+            },
+            Player {
+                jump_time: JUMP_TIME,
+                jump_timer: 0.0,
+                jump_force: JUMP_FORCE,
+                speed: SPEED,
+                released_jump: false,
+                horizontal: 0,
+                grounded: false,
+                velocity: Vec2::new(0., -0.1),
+                half_size: player_size / 2.0,
+            },
+            RigidBody::KinematicPositionBased,
+            Collider::capsule_y(half_height.max(1.0), radius.max(1.0)),
+            KinematicCharacterController {
+                up: Vec2::Y,
+                offset: CharacterLength::Absolute(0.02),
+                slide: true,
+                snap_to_ground: Some(CharacterLength::Absolute(4.0)),
+                autostep: Some(CharacterAutostep {
+                    max_height: CharacterLength::Absolute(6.0),
+                    min_width: CharacterLength::Absolute(8.0),
+                    include_dynamic_bodies: false
+                }),
+                max_slope_climb_angle: 55f32.to_radians(),
+                min_slope_slide_angle: 65f32.to_radians(),
+                filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
+                ..default()
+            }
+        ));
+    } else {
+        error!("Player Data not found");
+    }
 }
 
 #[coverage(off)]

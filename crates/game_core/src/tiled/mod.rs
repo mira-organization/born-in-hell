@@ -52,6 +52,22 @@ pub struct ObjectLayers {
     pub loader_systems: HashMap<String, SystemId>
 }
 
+impl ObjectLayers {
+
+    pub fn get_data(&self, layer_name: &str, key: &str) -> Option<ObjectData> {
+        let data = None;
+        if let Some(layer_data) = self.layer_data.get(layer_name) {
+            for obj_data in layer_data {
+                if obj_data.name.eq(key) {
+                    return Some(obj_data.clone());
+                }
+            }
+        }
+        data
+    }
+
+}
+
 #[derive(TypePath, Asset)]
 pub struct TiledMap {
     pub map: tiled::Map,
