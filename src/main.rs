@@ -273,7 +273,7 @@ mod manager {
         fn build(&self, app: &mut App) {
             app.add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0));
             app.add_plugins(RapierDebugRenderPlugin {
-                enabled: true,
+                enabled: false,
                 ..default()
             });
 
@@ -290,7 +290,7 @@ mod manager {
             app.add_plugins(GameCameraPlugin);
 
             app.add_systems(Startup, setup_shadow_map);
-            app.add_systems(Update, toggle_world_inspector);
+            app.add_systems(Update, (toggle_world_inspector, toggle_debug_system));
         }
     }
 
@@ -308,6 +308,18 @@ mod manager {
         let key = global_config.input_config.get_inspector_key();
         if keyboard.just_pressed(key) {
             debug_context.0 = !debug_context.0;
+        }
+    }
+
+    #[coverage(off)]
+    pub fn toggle_debug_system(
+        mut debug_context: ResMut<DebugRenderContext>,
+        keyboard: ResMut<ButtonInput<KeyCode>>,
+        global_config: Res<GlobalConfig>
+    ) {
+        let key = global_config.input_config.get_gizmo_box_key();
+        if keyboard.just_pressed(key) {
+            debug_context.enabled = !debug_context.enabled
         }
     }
 

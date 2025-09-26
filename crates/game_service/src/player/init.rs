@@ -3,15 +3,10 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use tiled::{LayerType, ObjectShape, TileLayer};
 use game_core::animation::{Animation, Animator};
-use game_core::player::Player;
+use game_core::player::{Player, PlayerBody, GRAVITY};
 use game_core::states::AppState;
 use game_core::tiled::{LevelData, ObjectLayers};
 use game_core::world::tiled_to_world_position;
-
-const GRAVITY : f32 = 300.0;
-const JUMP_TIME : f32 = 0.3;
-const JUMP_FORCE : f32 = 250.0;
-const SPEED : f32 = 200.0;
 
 #[derive(Resource, Default)]
 struct CollisionBuilt(bool);
@@ -122,15 +117,11 @@ fn init_player(
                 ..Default::default()
             },
             Player {
-                jump_time: JUMP_TIME,
-                jump_timer: 0.0,
-                jump_force: JUMP_FORCE,
-                speed: SPEED,
-                released_jump: false,
-                horizontal: 0,
-                grounded: false,
-                velocity: Vec2::new(0., -0.1),
-                half_size: player_size / 2.0,
+                body: PlayerBody {
+                    horizontal: 0,
+                    half_size: player_size / 2.0,
+                },
+                ..default()
             },
             RigidBody::KinematicPositionBased,
             Collider::capsule_y(half_height.max(1.0), radius.max(1.0)),
@@ -161,17 +152,17 @@ fn update_player_animations(
 ) {
     if let Ok((player,mut sprite,mut animator)) = player_query.single_mut() {
 
-        if player.horizontal > 0 {
+        if player.body.horizontal > 0 {
             sprite.flip_x = false;
         }
-        else if player.horizontal < 0 {
+        else if player.body.horizontal < 0 {
             sprite.flip_x = true;
         }
 
-        if !player.grounded {
+        if !player.physic.grounded {
             animator.animation = "jump".to_string();
         }
-        else if player.horizontal != 0 {
+        else if player.body.horizontal != 0 {
             animator.animation = "run".to_string();
         }
         else {
@@ -186,20 +177,20 @@ fn handle_player_input(
     mut player_query : Query<&mut Player>,
 ) {
     if let Ok(mut player) = player_query.single_mut() {
-        player.horizontal = 0;
+        player.body.horizontal = 0;
         if input.pressed(KeyCode::KeyA) {
-            player.horizontal -= 1;
+            player.body.horizontal -= 1;
         }
         if input.pressed(KeyCode::KeyD) {
-            player.horizontal += 1;
+            player.body.horizontal += 1;
         }
 
-        if input.just_pressed(KeyCode::Space) && player.grounded {
-            player.jump_timer = player.jump_time;
+        if input.just_pressed(KeyCode::Space) && player.physic.grounded {
+            player.physic.jump_timer = player.physic.jump_time;
         }
 
         if input.just_released(KeyCode::Space) {
-            player.jump_timer = 0.;
+            player.physic.jump_timer = 0.;
         }
     }
 }
@@ -210,27 +201,27 @@ fn update_physics(
     mut player_query : Query<(&mut KinematicCharacterController, &mut Player)>,
 ) {
     for(mut kcc, mut player) in player_query.iter_mut() {
-        player.velocity.x = player.horizontal as f32 * player.speed;
+        player.physic.velocity.x = player.body.horizontal as f32 * player.physic.speed;
 
-        if player.jump_timer > 0. && player.grounded {
-            let jump_force = player.jump_force;
-            player.grounded = false;
-            player.velocity.y = jump_force;
+        if player.physic.jump_timer > 0. && player.physic.grounded {
+            let jump_force = player.physic.jump_force;
+            player.physic.grounded = false;
+            player.physic.velocity.y = jump_force;
         }
 
-        if !player.grounded {
-            player.velocity.y -= GRAVITY * time.delta_secs();
+        if !player.physic.grounded {
+            player.physic.velocity.y -= GRAVITY * time.delta_secs();
         }
 
         let max_fall = 1200.0;
-        if player.velocity.y < -max_fall {
-            player.velocity.y = -max_fall;
+        if player.physic.velocity.y < -max_fall {
+            player.physic.velocity.y = -max_fall;
         }
 
-        let motion = player.velocity * time.delta_secs();
+        let motion = player.physic.velocity * time.delta_secs();
         kcc.translation = Some(motion);
-        player.jump_timer -= time.delta_secs();
-        if player.jump_timer < 0.0 { player.jump_timer = 0.0; }
+        player.physic.jump_timer -= time.delta_secs();
+        if player.physic.jump_timer < 0.0 { player.physic.jump_timer = 0.0; }
     }
 }
 
@@ -239,10 +230,10 @@ fn handle_collisions(
     mut query: Query<(&KinematicCharacterControllerOutput, &mut Player)>,
 ) {
     for (kcc_out, mut player) in query.iter_mut() {
-        let was_grounded = player.grounded;
-        player.grounded = kcc_out.grounded;
-        if player.grounded && player.velocity.y < 0. {
-            player.velocity.y = 0.;
+        let was_grounded = player.physic.grounded;
+        player.physic.grounded = kcc_out.grounded;
+        if player.physic.grounded && player.physic.velocity.y < 0. {
+            player.physic.velocity.y = 0.;
         }
 
         let _ = was_grounded;

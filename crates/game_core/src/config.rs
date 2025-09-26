@@ -143,9 +143,12 @@ impl Default for InputConfig {
 
 impl InputConfig {
     pub fn get_inspector_key(&self) -> KeyCode {
-        convert(self.inspector.as_str()).unwrap_or_else(|| KeyCode::F12)
+        convert(self.inspector.as_str()).unwrap_or_else(|| KeyCode::F1)
     }
 
+    pub fn get_gizmo_box_key(&self) -> KeyCode {
+        convert(self.gizmos_boxen.as_str()).unwrap_or_else(|| KeyCode::F9)
+    }
 }
 
 // =================================================================================================
