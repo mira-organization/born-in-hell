@@ -1,5 +1,8 @@
 #![coverage(off)]
 
+pub mod properties;
+pub mod objects;
+
 use std::collections::HashMap;
 use std::io::{Cursor, Error, ErrorKind};
 use std::path::Path;
@@ -16,6 +19,7 @@ use bevy_ecs_tilemap::TilemapBundle;
 use bevy_ecs_tilemap::tiles::TileTextureIndex;
 use thiserror::Error;
 use tiled::{DefaultResourceCache, ObjectData};
+use crate::tiled::objects::DoorEntered;
 
 pub struct TiledModule;
 
@@ -27,6 +31,7 @@ impl Plugin for TiledModule {
         app.init_asset::<TiledMap>();
         app.init_resource::<LevelData>();
         app.init_resource::<ObjectLayers>();
+        app.add_event::<DoorEntered>();
         app.add_systems(Update, process_maps);
     }
 }

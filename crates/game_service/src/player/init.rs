@@ -6,6 +6,8 @@ use game_core::animation::{Animation, Animator};
 use game_core::player::{Player, PlayerBody, GRAVITY};
 use game_core::states::AppState;
 use game_core::tiled::{LevelData, ObjectLayers};
+use game_core::tiled::objects::{DoorEntered, DoorSensor};
+use game_core::tiled::properties::{ObjectShapeExt, PropertyValueExt};
 use game_core::world::tiled_to_world_position;
 
 #[derive(Resource, Default)]
@@ -21,8 +23,14 @@ impl Plugin for PlayerInitService {
 
         app.add_systems(OnEnter(AppState::Preload), init_player_loader)
 
-            .add_systems(Update, (handle_player_input,update_player_animations.after(handle_player_input), build_tile_colliders_once)
-                .run_if(in_state(AppState::Preload)))
+            .add_systems(Update, (
+                handle_player_input,
+                update_player_animations
+                    .after(handle_player_input),
+                build_tile_colliders_once
+            ).run_if(in_state(AppState::Preload)))
+
+            .add_systems(Update, (door_observer, on_door_entered).run_if(in_state(AppState::Preload)))
 
             .add_systems(FixedUpdate, (handle_collisions,update_physics.before(handle_collisions))
                 .run_if(in_state(AppState::Preload)));
@@ -39,8 +47,65 @@ fn init_player_loader(
 }
 
 #[coverage(off)]
-fn door_test() {
-    info!("Door Test");
+fn door_test(
+    mut commands: Commands,
+    object_layers: Res<ObjectLayers>,
+    level_data: Res<LevelData>
+) {
+    let Some(map) = level_data.map.as_ref() else { return; };
+    let Some(object) = object_layers.get_data("Interact", "DoorTest") else { return; };
+    if !object.user_type.eq_ignore_ascii_case(&"observe") { return; }
+
+    let width = object.shape.get_width();
+    let height = object.shape.get_height();
+
+    let origin = tiled_to_world_position(Vec2::new(object.x, object.y), map);
+    let center = origin + Vec2::new(width * 0.5, height * 0.5);
+
+    commands.spawn((
+        Name::new("DoorSensor"),
+        DoorSensor,
+        Transform::from_xyz(center.x, center.y - height, 0.0),
+        GlobalTransform::IDENTITY,
+        Visibility::Visible,
+        InheritedVisibility::VISIBLE,
+        RigidBody::Fixed,
+        Collider::cuboid(width * 0.5, height * 0.5),
+        Sensor,
+        ActiveEvents::COLLISION_EVENTS,
+        ActiveCollisionTypes::all(),
+        CollisionGroups::new(Group::ALL, Group::ALL)
+    ));
+}
+
+#[coverage(off)]
+fn door_observer(
+    mut event: EventReader<CollisionEvent>,
+    mut writer: EventWriter<DoorEntered>,
+    door_query: Query<Entity, With<DoorSensor>>,
+    player_query: Query<Entity, With<Player>>,
+) {
+    for ev in event.read() {
+        if let CollisionEvent::Started(collider_01, collider_02, _) = ev {
+            let a_is_door = door_query.get(*collider_01).is_ok();
+            let b_is_door = door_query.get(*collider_02).is_ok();
+            let a_is_player = player_query.get(*collider_01).is_ok();
+            let b_is_player = player_query.get(*collider_02).is_ok();
+
+            if (a_is_door && b_is_player) || (b_is_door && a_is_player) {
+                writer.write(DoorEntered);
+            }
+        }
+    }
+}
+
+#[coverage(off)]
+fn on_door_entered(
+    mut event: EventReader<DoorEntered>,
+) {
+    for _ in event.read() {
+        info!("Door Entered");
+    }
 }
 
 #[coverage(off)]
@@ -51,7 +116,7 @@ fn init_player(
     level_data: Res<LevelData>,
     asset_server: Res<AssetServer>,
 ) {
-    if let Some(object) = object_layers.get_data("Entities", "Player Position") {
+    if let Some(object) = object_layers.get_data("Entities", "Player") {
         let map = level_data.map.as_ref().unwrap();
 
         let player_size = Vec2::new(13.0, 38.0);
@@ -98,7 +163,28 @@ fn init_player(
         let radius = width * 0.5;
         let half_height = (height * 0.5) - radius;
 
+        let mut player = Player {
+            body: PlayerBody {
+                horizontal: 0,
+                half_size: player_size / 2.0,
+            },
+            ..default()
+        };
+
+        if !object.properties.is_empty() {
+            for (prop_name, prop_value) in object.properties.iter() {
+                if prop_name.eq("health") {
+                    player.stats.health = prop_value.i32_or(100);
+                }
+
+                if prop_name.eq("base_health") {
+                    player.base_stats.health = prop_value.i32_or(100);
+                }
+            }
+        }
+
         commands.spawn((
+            Name::new("Player"),
             Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(1.0)),
             GlobalTransform::IDENTITY,
             Visibility::Visible,
@@ -116,13 +202,7 @@ fn init_player(
                 animations,
                 ..Default::default()
             },
-            Player {
-                body: PlayerBody {
-                    horizontal: 0,
-                    half_size: player_size / 2.0,
-                },
-                ..default()
-            },
+            player,
             RigidBody::KinematicPositionBased,
             Collider::capsule_y(half_height.max(1.0), radius.max(1.0)),
             KinematicCharacterController {
@@ -137,9 +217,10 @@ fn init_player(
                 }),
                 max_slope_climb_angle: 55f32.to_radians(),
                 min_slope_slide_angle: 65f32.to_radians(),
-                filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
                 ..default()
-            }
+            },
+            ActiveEvents::COLLISION_EVENTS,
+            CollisionGroups::new(Group::ALL, Group::ALL)
         ));
     } else {
         error!("Player Data not found");

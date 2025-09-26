@@ -11,6 +11,7 @@ impl Plugin for PlayerModule {
     #[coverage(off)]
     fn build(&self, app: &mut App) {
         app.init_resource::<PlayerState>();
+        app.register_type::<Player>();
     }
 }
 
@@ -18,7 +19,35 @@ impl Plugin for PlayerModule {
 #[reflect(Component)]
 pub struct Player {
     pub physic: PlayerPhysic,
-    pub body: PlayerBody
+    pub body: PlayerBody,
+    pub stats: PlayerStats,
+    pub base_stats: PlayerBaseStats
+}
+
+#[derive(Component, Reflect, Debug, Clone)]
+pub struct PlayerBaseStats {
+    pub health: i32,
+}
+
+impl Default for PlayerBaseStats {
+    fn default() -> Self {
+        Self {
+            health: 100
+        }
+    }
+}
+
+#[derive(Component, Reflect, Debug, Clone)]
+pub struct PlayerStats {
+    pub health: i32
+}
+
+impl Default for PlayerStats {
+    fn default() -> Self {
+        Self {
+            health: 100
+        }
+    }
 }
 
 #[derive(Component, Reflect, Debug, Clone, Default)]
@@ -56,7 +85,9 @@ impl Default for Player {
     fn default() -> Self {
         Self {
             physic: PlayerPhysic::default(),
-            body: PlayerBody::default()
+            body: PlayerBody::default(),
+            stats: PlayerStats::default(),
+            base_stats: PlayerBaseStats::default()
         }
     }
 }
