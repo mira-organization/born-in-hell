@@ -37,29 +37,48 @@ impl Plugin for TiledModule {
     }
 }
 
+/// Level container holding the parsed Tiled map, a precomputed collision
+/// grid, and renderable image layers extracted from the map.
 #[derive(Resource, Default)]
 pub struct LevelData {
+    /// The loaded Tiled map; `None` until parsing completes.
     pub map: Option<tiled::Map>,
+    /// Flat collision mask (tile-aligned), typically 0/1 or similar flags.
     pub collision_map: Vec<i32>,
+    /// Ordered a set of image layers with texture, tint, and transform.
     pub image_layers: Vec<ImageLayerData>,
 }
 
+/// Renderable description of a single Tiled image layer including texture,
+/// color/tint, and world transform.
 #[derive(Clone)]
 pub struct ImageLayerData {
+    /// Layer name as defined in Tiled.
     pub name: String,
+    /// Handle to the Bevy image for this layer.
     pub texture: Handle<Image>,
+    /// Multiplicative tint color (includes opacity).
     pub color: Color,
+    /// Transform applied when drawing this layer.
     pub transform: Transform,
 }
 
+/// Registry of Tiled object layers keyed by layer name, plus optional loader
+/// systems associated with those layers for dynamic instantiation.
 #[derive(Resource, Default)]
 pub struct ObjectLayers {
+    /// Mapping: layer name -> list of parsed object records.
     pub layer_data: HashMap<String, Vec<ObjectData>>,
+    /// Mapping: layer name -> system that knows how to spawn/process it.
     pub loader_systems: HashMap<String, SystemId>
 }
 
 impl ObjectLayers {
-
+    /// Retrieves a cloned `ObjectData` by layer and object name.
+    ///
+    /// # Parameters
+    /// * `layer_name` - Name of the Tiled object layer.
+    /// * `key` - Object name to match within the layer.
     pub fn get_data(&self, layer_name: &str, key: &str) -> Option<ObjectData> {
         let data = None;
         if let Some(layer_data) = self.layer_data.get(layer_name) {
@@ -71,20 +90,30 @@ impl ObjectLayers {
         }
         data
     }
-
 }
 
+/// Bevy asset wrapping a parsed Tiled `Map` and the resolved tile-set textures
+/// needed to render tile layers.
 #[derive(TypePath, Asset)]
 pub struct TiledMap {
+    /// Parsed Tiled map data.
     pub map: tiled::Map,
+    /// Resolved textures for tile sets, keyed by tileset index.
     pub tilemap_textures: HashMap<usize, TilemapTexture>
 }
 
+/// `tiled::ResourceReader` implementation that serves bytes from memory,
+/// allowing Tiled to read referenced resources from an in-memory buffer.
 struct BytesResourceReader {
+    /// Shared byte buffer backing all reads.
     bytes: Arc<[u8]>,
 }
 
 impl BytesResourceReader {
+    /// Constructs a reader backed by the provided byte slice.
+    ///
+    /// # Parameters
+    /// * `bytes` - Source data to expose via the reader.
     fn new(bytes: &[u8]) -> Self {
         Self {
             bytes: Arc::from(bytes),
@@ -93,21 +122,34 @@ impl BytesResourceReader {
 }
 
 impl tiled::ResourceReader for BytesResourceReader {
+    /// In-memory cursor over the shared bytes.
     type Resource = Cursor<Arc<[u8]>>;
+    /// I/O error type propagated by the reader.
     type Error = std::io::Error;
 
+    /// Returns a new cursor for the requested path, ignoring the path and
+    /// always serving the same in-memory bytes.
+    ///
+    /// # Parameters
+    /// * `_path` - Ignored; Tiled requests a resource path.
     fn read_from(&mut self, _path: &Path) -> Result<Self::Resource, Self::Error> {
         Ok(Cursor::new(self.bytes.clone()))
     }
-
 }
 
+/// Errors that can occur while loading Tiled assets.
 #[derive(Debug, Error)]
 pub enum TiledAssetLoaderError {
+    /// Wrapper around underlying I/O failures from resource reading/parsing.
     #[error("Tiled asset loading error: {0}")]
     Io(#[from] std::io::Error),
 }
 
+/// Bevy asset loader for `.tmx` Tiled maps backed by an in-memory
+/// `ResourceReader`. Produces a `TiledMap` asset with resolved tileset
+/// textures.
+///
+/// Loads the TMX, builds the tileset texture map, and returns a `TiledMap`.
 pub struct TiledLoader;
 
 impl AssetLoader for TiledLoader {
@@ -115,6 +157,12 @@ impl AssetLoader for TiledLoader {
     type Settings = ();
     type Error = TiledAssetLoaderError;
 
+    /// Reads TMX bytes, parses the map, and collects tileset textures.
+    ///
+    /// # Parameters
+    /// * `reader` - Async reader providing the TMX file bytes.
+    /// * `_settings` - Loader settings (unused).
+    /// * `load_context` - Context used to resolve/queue dependent assets.
     async fn load(
         &self,
         reader: &mut dyn Reader,
@@ -162,27 +210,54 @@ impl AssetLoader for TiledLoader {
     }
 }
 
+/// Mapping from Tiled layer indices to spawned Bevy entities that back those
+/// layers. Used to despawn/rebuild layers when reprocessing a map instance.
 #[derive(Component, Default)]
 pub struct TiledLayersStorage {
+    /// Map: layer index -> layer root entity.
     pub storage: HashMap<u32, Entity>,
 }
 
+/// Component holding a handle to a `TiledMap` asset instance for an entity
+/// that represents a map in the world.
 #[derive(Component, Default)]
 pub struct TiledMapHandle(pub Handle<TiledMap>);
 
+/// Load-state flag component for a map entity to avoid duplicate processing.
 #[derive(Component, Default)]
 pub struct TiledMapLoaded(pub bool);
 
+/// Bundle for spawning a Tiled map instance with storage, state, transform,
+/// and render settings required by bevy_ecs_tilemap.
 #[derive(Bundle, Default)]
 pub struct TiledMapBundle {
+    /// Handle to the `TiledMap` asset.
     pub tiled_map: TiledMapHandle,
+    /// Per-layer entity storage.
     pub storage: TiledLayersStorage,
+    /// One-shot loaded flag.
     pub load_state: TiledMapLoaded,
+    /// Local transform for the map root.
     pub transform: Transform,
+    /// Global transform cache.
     pub global_transform: GlobalTransform,
+    /// Tilemap render configuration (culling, z-ordering, etc.).
     pub render_settings: TilemapRenderSettings
 }
 
+/// System that instantiates all layers from a loaded `TiledMap`, wiring up
+/// image layers, tile layers, and object layers. Also refreshes/despawns any
+/// previously spawned layer entities, writes collision data, and triggers
+/// registered object-layer loader systems.
+///
+/// # Parameters
+/// * `commands` - Command buffer used to spawn/despawn map and tile entities.
+/// * `maps` - Asset storage for resolved `TiledMap` assets.
+/// * `tile_storage_query` - Access to existing `TileStorage` per layer.
+/// * `map_query` - Target map entity and its handle/load-state/storage/render settings.
+/// * `object_layers` - Registry for parsed object layers and their loader systems.
+/// * `level_data` - Shared level metadata: map, collision mask, image layers.
+/// * `asset_server` - For loading image-layer textures referenced by the map.
 #[coverage(off)]
 fn process_maps(
     mut commands: Commands,
