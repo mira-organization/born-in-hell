@@ -3,10 +3,11 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use tiled::{LayerType, ObjectShape, TileLayer};
 use game_core::animation::{Animation, Animator};
+use game_core::config::GlobalConfig;
 use game_core::player::{Player, PlayerBody, GRAVITY};
 use game_core::states::AppState;
 use game_core::tiled::{LevelData, ObjectLayers};
-use game_core::tiled::objects::{DoorEntered, DoorSensor};
+use game_core::tiled::objects::{DoorEntered, DoorOverlap, DoorSensor};
 use game_core::tiled::properties::{ObjectShapeExt, PropertyValueExt};
 use game_core::world::tiled_to_world_position;
 
@@ -30,7 +31,7 @@ impl Plugin for PlayerInitService {
                 build_tile_colliders_once
             ).run_if(in_state(AppState::Preload)))
 
-            .add_systems(Update, (door_observer, on_door_entered).run_if(in_state(AppState::Preload)))
+            .add_systems(Update, (door_observer, door_interact, on_door_entered).run_if(in_state(AppState::Preload)))
 
             .add_systems(FixedUpdate, (handle_collisions,update_physics.before(handle_collisions))
                 .run_if(in_state(AppState::Preload)));
@@ -80,30 +81,52 @@ fn door_test(
 
 #[coverage(off)]
 fn door_observer(
-    mut event: EventReader<CollisionEvent>,
-    mut writer: EventWriter<DoorEntered>,
-    door_query: Query<Entity, With<DoorSensor>>,
-    player_query: Query<Entity, With<Player>>,
+    mut ev: EventReader<CollisionEvent>,
+    door_q: Query<Entity, With<DoorSensor>>,
+    player_q: Query<Entity, With<Player>>,
+    mut overlap: ResMut<DoorOverlap>,
 ) {
-    for ev in event.read() {
-        if let CollisionEvent::Started(collider_01, collider_02, _) = ev {
-            let a_is_door = door_query.get(*collider_01).is_ok();
-            let b_is_door = door_query.get(*collider_02).is_ok();
-            let a_is_player = player_query.get(*collider_01).is_ok();
-            let b_is_player = player_query.get(*collider_02).is_ok();
-
-            if (a_is_door && b_is_player) || (b_is_door && a_is_player) {
-                writer.write(DoorEntered);
+    for e in ev.read() {
+        match e {
+            CollisionEvent::Started(a, b, _) => {
+                let a_is_door = door_q.get(*a).is_ok();
+                let b_is_door = door_q.get(*b).is_ok();
+                let a_is_player = player_q.get(*a).is_ok();
+                let b_is_player = player_q.get(*b).is_ok();
+                if (a_is_door && b_is_player) || (b_is_door && a_is_player) {
+                    overlap.inside = true;
+                }
+            }
+            CollisionEvent::Stopped(a, b, _) => {
+                let a_is_door = door_q.get(*a).is_ok();
+                let b_is_door = door_q.get(*b).is_ok();
+                let a_is_player = player_q.get(*a).is_ok();
+                let b_is_player = player_q.get(*b).is_ok();
+                if (a_is_door && b_is_player) || (b_is_door && a_is_player) {
+                    overlap.inside = false;
+                }
             }
         }
     }
 }
 
 #[coverage(off)]
-fn on_door_entered(
-    mut event: EventReader<DoorEntered>,
+fn door_interact(
+    input: Res<ButtonInput<KeyCode>>,
+    overlap: Res<DoorOverlap>,
+    global_config: Res<GlobalConfig>,
+    mut writer: EventWriter<DoorEntered>,
 ) {
-    for _ in event.read() {
+    if !overlap.inside { return; }
+    let interact_key = global_config.input_config.get_interact_key();
+    if input.just_pressed(interact_key) {
+        writer.write(DoorEntered);
+    }
+}
+
+#[coverage(off)]
+fn on_door_entered(mut ev: EventReader<DoorEntered>) {
+    for _ in ev.read() {
         info!("Door Entered");
     }
 }
@@ -256,21 +279,26 @@ fn update_player_animations(
 fn handle_player_input(
     input : Res<ButtonInput<KeyCode>>,
     mut player_query : Query<&mut Player>,
+    global_config: Res<GlobalConfig>
 ) {
+    let left_key = global_config.input_config.get_move_left_key();
+    let right_key = global_config.input_config.get_move_right_key();
+    let jump_key = global_config.input_config.get_jump_key();
+
     if let Ok(mut player) = player_query.single_mut() {
         player.body.horizontal = 0;
-        if input.pressed(KeyCode::KeyA) {
+        if input.pressed(left_key) {
             player.body.horizontal -= 1;
         }
-        if input.pressed(KeyCode::KeyD) {
+        if input.pressed(right_key) {
             player.body.horizontal += 1;
         }
 
-        if input.just_pressed(KeyCode::Space) && player.physic.grounded {
+        if input.just_pressed(jump_key) && player.physic.grounded {
             player.physic.jump_timer = player.physic.jump_time;
         }
 
-        if input.just_released(KeyCode::Space) {
+        if input.just_released(jump_key) {
             player.physic.jump_timer = 0.;
         }
     }

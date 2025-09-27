@@ -1,3 +1,5 @@
+#![coverage(off)]
+
 use tiled::{Color, ObjectShape, PropertyValue};
 
 pub trait PropertyValueExt {

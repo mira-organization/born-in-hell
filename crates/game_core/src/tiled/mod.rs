@@ -19,7 +19,7 @@ use bevy_ecs_tilemap::TilemapBundle;
 use bevy_ecs_tilemap::tiles::TileTextureIndex;
 use thiserror::Error;
 use tiled::{DefaultResourceCache, ObjectData};
-use crate::tiled::objects::DoorEntered;
+use crate::tiled::objects::{DoorEntered, DoorOverlap};
 
 pub struct TiledModule;
 
@@ -31,6 +31,7 @@ impl Plugin for TiledModule {
         app.init_asset::<TiledMap>();
         app.init_resource::<LevelData>();
         app.init_resource::<ObjectLayers>();
+        app.init_resource::<DoorOverlap>();
         app.add_event::<DoorEntered>();
         app.add_systems(Update, process_maps);
     }
