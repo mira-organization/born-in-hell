@@ -1,5 +1,8 @@
 #![coverage(off)]
 
+pub mod properties;
+pub mod objects;
+
 use std::collections::HashMap;
 use std::io::{Cursor, Error, ErrorKind};
 use std::path::Path;
@@ -16,6 +19,7 @@ use bevy_ecs_tilemap::TilemapBundle;
 use bevy_ecs_tilemap::tiles::TileTextureIndex;
 use thiserror::Error;
 use tiled::{DefaultResourceCache, ObjectData};
+use crate::tiled::objects::{DoorEntered, DoorOverlap};
 
 pub struct TiledModule;
 
@@ -27,6 +31,8 @@ impl Plugin for TiledModule {
         app.init_asset::<TiledMap>();
         app.init_resource::<LevelData>();
         app.init_resource::<ObjectLayers>();
+        app.init_resource::<DoorOverlap>();
+        app.add_event::<DoorEntered>();
         app.add_systems(Update, process_maps);
     }
 }
@@ -50,6 +56,22 @@ pub struct ImageLayerData {
 pub struct ObjectLayers {
     pub layer_data: HashMap<String, Vec<ObjectData>>,
     pub loader_systems: HashMap<String, SystemId>
+}
+
+impl ObjectLayers {
+
+    pub fn get_data(&self, layer_name: &str, key: &str) -> Option<ObjectData> {
+        let data = None;
+        if let Some(layer_data) = self.layer_data.get(layer_name) {
+            for obj_data in layer_data {
+                if obj_data.name.eq(key) {
+                    return Some(obj_data.clone());
+                }
+            }
+        }
+        data
+    }
+
 }
 
 #[derive(TypePath, Asset)]

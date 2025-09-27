@@ -3,15 +3,13 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use tiled::{LayerType, ObjectShape, TileLayer};
 use game_core::animation::{Animation, Animator};
-use game_core::player::Player;
+use game_core::config::GlobalConfig;
+use game_core::player::{Player, PlayerBody, GRAVITY};
 use game_core::states::AppState;
 use game_core::tiled::{LevelData, ObjectLayers};
+use game_core::tiled::objects::{DoorEntered, DoorOverlap, DoorSensor};
+use game_core::tiled::properties::{ObjectShapeExt, PropertyValueExt};
 use game_core::world::tiled_to_world_position;
-
-const GRAVITY : f32 = 300.0;
-const JUMP_TIME : f32 = 0.3;
-const JUMP_FORCE : f32 = 250.0;
-const SPEED : f32 = 200.0;
 
 #[derive(Resource, Default)]
 struct CollisionBuilt(bool);
@@ -26,8 +24,14 @@ impl Plugin for PlayerInitService {
 
         app.add_systems(OnEnter(AppState::Preload), init_player_loader)
 
-            .add_systems(Update, (handle_player_input,update_player_animations.after(handle_player_input), build_tile_colliders_once)
-                .run_if(in_state(AppState::Preload)))
+            .add_systems(Update, (
+                handle_player_input,
+                update_player_animations
+                    .after(handle_player_input),
+                build_tile_colliders_once
+            ).run_if(in_state(AppState::Preload)))
+
+            .add_systems(Update, (door_observer, door_interact, on_door_entered).run_if(in_state(AppState::Preload)))
 
             .add_systems(FixedUpdate, (handle_collisions,update_physics.before(handle_collisions))
                 .run_if(in_state(AppState::Preload)));
@@ -39,13 +43,92 @@ fn init_player_loader(
     mut object_layers: ResMut<ObjectLayers>,
     mut commands: Commands
 ) {
-    object_layers.loader_systems.insert(String::from("Player"), commands.register_system(init_player));
+    object_layers.loader_systems.insert(String::from("Entities"), commands.register_system(init_player));
     object_layers.loader_systems.insert(String::from("Interact"), commands.register_system(door_test));
 }
 
 #[coverage(off)]
-fn door_test() {
-    info!("Door test");
+fn door_test(
+    mut commands: Commands,
+    object_layers: Res<ObjectLayers>,
+    level_data: Res<LevelData>
+) {
+    let Some(map) = level_data.map.as_ref() else { return; };
+    let Some(object) = object_layers.get_data("Interact", "DoorTest") else { return; };
+    if !object.user_type.eq_ignore_ascii_case(&"observe") { return; }
+
+    let width = object.shape.get_width();
+    let height = object.shape.get_height();
+
+    let origin = tiled_to_world_position(Vec2::new(object.x, object.y), map);
+    let center = origin + Vec2::new(width * 0.5, height * 0.5);
+
+    commands.spawn((
+        Name::new("DoorSensor"),
+        DoorSensor,
+        Transform::from_xyz(center.x, center.y - height, 0.0),
+        GlobalTransform::IDENTITY,
+        Visibility::Visible,
+        InheritedVisibility::VISIBLE,
+        RigidBody::Fixed,
+        Collider::cuboid(width * 0.5, height * 0.5),
+        Sensor,
+        ActiveEvents::COLLISION_EVENTS,
+        ActiveCollisionTypes::all(),
+        CollisionGroups::new(Group::ALL, Group::ALL)
+    ));
+}
+
+#[coverage(off)]
+fn door_observer(
+    mut ev: EventReader<CollisionEvent>,
+    door_q: Query<Entity, With<DoorSensor>>,
+    player_q: Query<Entity, With<Player>>,
+    mut overlap: ResMut<DoorOverlap>,
+) {
+    for e in ev.read() {
+        match e {
+            CollisionEvent::Started(a, b, _) => {
+                let a_is_door = door_q.get(*a).is_ok();
+                let b_is_door = door_q.get(*b).is_ok();
+                let a_is_player = player_q.get(*a).is_ok();
+                let b_is_player = player_q.get(*b).is_ok();
+                if (a_is_door && b_is_player) || (b_is_door && a_is_player) {
+                    overlap.inside = true;
+                }
+            }
+            CollisionEvent::Stopped(a, b, _) => {
+                let a_is_door = door_q.get(*a).is_ok();
+                let b_is_door = door_q.get(*b).is_ok();
+                let a_is_player = player_q.get(*a).is_ok();
+                let b_is_player = player_q.get(*b).is_ok();
+                if (a_is_door && b_is_player) || (b_is_door && a_is_player) {
+                    overlap.inside = false;
+                }
+            }
+        }
+    }
+}
+
+#[coverage(off)]
+fn door_interact(
+    input: Res<ButtonInput<KeyCode>>,
+    overlap: Res<DoorOverlap>,
+    global_config: Res<GlobalConfig>,
+    mut writer: EventWriter<DoorEntered>,
+) {
+    if !overlap.inside { return; }
+    let interact_key = global_config.input_config.get_interact_key();
+    if input.just_pressed(interact_key) {
+        writer.write(DoorEntered);
+    }
+}
+
+#[coverage(off)]
+fn on_door_entered(mut ev: EventReader<DoorEntered>) {
+    for _ in ev.read() {
+        info!("Door Entered");
+    }
 }
 
 #[coverage(off)]
@@ -56,102 +139,115 @@ fn init_player(
     level_data: Res<LevelData>,
     asset_server: Res<AssetServer>,
 ) {
-    let object_data = object_layers.layer_data["Player"].clone();
-    let object = &object_data[0];
-    let map = level_data.map.as_ref().unwrap();
+    if let Some(object) = object_layers.get_data("Entities", "Player") {
+        let map = level_data.map.as_ref().unwrap();
 
-    let player_size = Vec2::new(13.0,38.0);
+        let player_size = Vec2::new(13.0, 38.0);
 
-    let position = tiled_to_world_position(Vec2::new(object.x,object.y),map) + player_size / 2.0;
-    let frame_count = 19;
-    let frame_size = UVec2::new(24,38);
+        let position = tiled_to_world_position(Vec2::new(object.x, object.y), map) + player_size / 2.0;
+        let frame_count = 19;
+        let frame_size = UVec2::new(24, 38);
 
-    let layout = TextureAtlasLayout::from_grid(
-        frame_size,
-        frame_count,
-        1,
-        None,
-        None,
-    );
-    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+        let layout = TextureAtlasLayout::from_grid(
+            frame_size,
+            frame_count,
+            1,
+            None,
+            None,
+        );
+        let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
-    let mut animations = HashMap::new();
+        let mut animations = HashMap::new();
 
-    animations.insert("idle".to_string(),Animation{
-        start: 1,
-        end : 8,
-        frame_duration : 0.1,
-        looping : true,
-    });
+        animations.insert("idle".to_string(), Animation {
+            start: 1,
+            end: 8,
+            frame_duration: 0.1,
+            looping: true,
+        });
 
-    animations.insert("run".to_string(),Animation{
-        start: 9,
-        end : 14,
-        frame_duration : 0.1,
-        looping : true,
-    });
+        animations.insert("run".to_string(), Animation {
+            start: 9,
+            end: 14,
+            frame_duration: 0.1,
+            looping: true,
+        });
 
-    animations.insert("jump".to_string(),Animation {
-        start: 16,
-        end : 19,
-        frame_duration : 0.1,
-        looping : false,
-    });
+        animations.insert("jump".to_string(), Animation {
+            start: 16,
+            end: 19,
+            frame_duration: 0.1,
+            looping: false,
+        });
 
 
-    let height = player_size.y;
-    let width = player_size.x;
-    let radius = width * 0.5;
-    let half_height = (height * 0.5) - radius;
+        let height = player_size.y;
+        let width = player_size.x;
+        let radius = width * 0.5;
+        let half_height = (height * 0.5) - radius;
 
-    commands.spawn((
-        Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(1.0)),
-        GlobalTransform::IDENTITY,
-        Visibility::Visible,
-        InheritedVisibility::VISIBLE,
-        Sprite {
-            image: asset_server.load("sprites/player.png"),
-            texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout,
-                index: 0,
-            }),
-            ..Default::default()
-        },
-        Animator {
-            animation: "idle".to_string(),
-            animations,
-            ..Default::default()
-        },
-        Player {
-            jump_time : JUMP_TIME,
-            jump_timer : 0.0,
-            jump_force : JUMP_FORCE,
-            speed : SPEED,
-            released_jump : false,
-            horizontal : 0,
-            grounded : false,
-            velocity : Vec2::new(0.,-0.1),
-            half_size : player_size / 2.0,
-        },
-
-        RigidBody::KinematicPositionBased,
-        Collider::capsule_y(half_height.max(1.0), radius.max(1.0)),
-        KinematicCharacterController {
-            up: Vec2::Y,
-            offset: CharacterLength::Absolute(0.02),
-            slide: true,
-            snap_to_ground: Some(CharacterLength::Absolute(4.0)),
-            autostep: Some(CharacterAutostep {
-                max_height: CharacterLength::Absolute(6.0),
-                min_width: CharacterLength::Absolute(8.0),
-                include_dynamic_bodies: false
-            }),
-            max_slope_climb_angle: 55f32.to_radians(),
-            min_slope_slide_angle: 65f32.to_radians(),
-            filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
+        let mut player = Player {
+            body: PlayerBody {
+                horizontal: 0,
+                half_size: player_size / 2.0,
+            },
             ..default()
+        };
+
+        if !object.properties.is_empty() {
+            for (prop_name, prop_value) in object.properties.iter() {
+                if prop_name.eq("health") {
+                    player.stats.health = prop_value.i32_or(100);
+                }
+
+                if prop_name.eq("base_health") {
+                    player.base_stats.health = prop_value.i32_or(100);
+                }
+            }
         }
-    ));
+
+        commands.spawn((
+            Name::new("Player"),
+            Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(1.0)),
+            GlobalTransform::IDENTITY,
+            Visibility::Visible,
+            InheritedVisibility::VISIBLE,
+            Sprite {
+                image: asset_server.load("sprites/player.png"),
+                texture_atlas: Some(TextureAtlas {
+                    layout: texture_atlas_layout,
+                    index: 0,
+                }),
+                ..Default::default()
+            },
+            Animator {
+                animation: "idle".to_string(),
+                animations,
+                ..Default::default()
+            },
+            player,
+            RigidBody::KinematicPositionBased,
+            Collider::capsule_y(half_height.max(1.0), radius.max(1.0)),
+            KinematicCharacterController {
+                up: Vec2::Y,
+                offset: CharacterLength::Absolute(0.02),
+                slide: true,
+                snap_to_ground: Some(CharacterLength::Absolute(4.0)),
+                autostep: Some(CharacterAutostep {
+                    max_height: CharacterLength::Absolute(6.0),
+                    min_width: CharacterLength::Absolute(8.0),
+                    include_dynamic_bodies: false
+                }),
+                max_slope_climb_angle: 55f32.to_radians(),
+                min_slope_slide_angle: 65f32.to_radians(),
+                ..default()
+            },
+            ActiveEvents::COLLISION_EVENTS,
+            CollisionGroups::new(Group::ALL, Group::ALL)
+        ));
+    } else {
+        error!("Player Data not found");
+    }
 }
 
 #[coverage(off)]
@@ -160,17 +256,17 @@ fn update_player_animations(
 ) {
     if let Ok((player,mut sprite,mut animator)) = player_query.single_mut() {
 
-        if player.horizontal > 0 {
+        if player.body.horizontal > 0 {
             sprite.flip_x = false;
         }
-        else if player.horizontal < 0 {
+        else if player.body.horizontal < 0 {
             sprite.flip_x = true;
         }
 
-        if !player.grounded {
+        if !player.physic.grounded {
             animator.animation = "jump".to_string();
         }
-        else if player.horizontal != 0 {
+        else if player.body.horizontal != 0 {
             animator.animation = "run".to_string();
         }
         else {
@@ -183,22 +279,27 @@ fn update_player_animations(
 fn handle_player_input(
     input : Res<ButtonInput<KeyCode>>,
     mut player_query : Query<&mut Player>,
+    global_config: Res<GlobalConfig>
 ) {
+    let left_key = global_config.input_config.get_move_left_key();
+    let right_key = global_config.input_config.get_move_right_key();
+    let jump_key = global_config.input_config.get_jump_key();
+
     if let Ok(mut player) = player_query.single_mut() {
-        player.horizontal = 0;
-        if input.pressed(KeyCode::KeyA) {
-            player.horizontal -= 1;
+        player.body.horizontal = 0;
+        if input.pressed(left_key) {
+            player.body.horizontal -= 1;
         }
-        if input.pressed(KeyCode::KeyD) {
-            player.horizontal += 1;
-        }
-
-        if input.just_pressed(KeyCode::Space) && player.grounded {
-            player.jump_timer = player.jump_time;
+        if input.pressed(right_key) {
+            player.body.horizontal += 1;
         }
 
-        if input.just_released(KeyCode::Space) {
-            player.jump_timer = 0.;
+        if input.just_pressed(jump_key) && player.physic.grounded {
+            player.physic.jump_timer = player.physic.jump_time;
+        }
+
+        if input.just_released(jump_key) {
+            player.physic.jump_timer = 0.;
         }
     }
 }
@@ -209,27 +310,27 @@ fn update_physics(
     mut player_query : Query<(&mut KinematicCharacterController, &mut Player)>,
 ) {
     for(mut kcc, mut player) in player_query.iter_mut() {
-        player.velocity.x = player.horizontal as f32 * player.speed;
+        player.physic.velocity.x = player.body.horizontal as f32 * player.physic.speed;
 
-        if player.jump_timer > 0. && player.grounded {
-            let jump_force = player.jump_force;
-            player.grounded = false;
-            player.velocity.y = jump_force;
+        if player.physic.jump_timer > 0. && player.physic.grounded {
+            let jump_force = player.physic.jump_force;
+            player.physic.grounded = false;
+            player.physic.velocity.y = jump_force;
         }
 
-        if !player.grounded {
-            player.velocity.y -= GRAVITY * time.delta_secs();
+        if !player.physic.grounded {
+            player.physic.velocity.y -= GRAVITY * time.delta_secs();
         }
 
         let max_fall = 1200.0;
-        if player.velocity.y < -max_fall {
-            player.velocity.y = -max_fall;
+        if player.physic.velocity.y < -max_fall {
+            player.physic.velocity.y = -max_fall;
         }
 
-        let motion = player.velocity * time.delta_secs();
+        let motion = player.physic.velocity * time.delta_secs();
         kcc.translation = Some(motion);
-        player.jump_timer -= time.delta_secs();
-        if player.jump_timer < 0.0 { player.jump_timer = 0.0; }
+        player.physic.jump_timer -= time.delta_secs();
+        if player.physic.jump_timer < 0.0 { player.physic.jump_timer = 0.0; }
     }
 }
 
@@ -238,10 +339,10 @@ fn handle_collisions(
     mut query: Query<(&KinematicCharacterControllerOutput, &mut Player)>,
 ) {
     for (kcc_out, mut player) in query.iter_mut() {
-        let was_grounded = player.grounded;
-        player.grounded = kcc_out.grounded;
-        if player.grounded && player.velocity.y < 0. {
-            player.velocity.y = 0.;
+        let was_grounded = player.physic.grounded;
+        player.physic.grounded = kcc_out.grounded;
+        if player.physic.grounded && player.physic.velocity.y < 0. {
+            player.physic.velocity.y = 0.;
         }
 
         let _ = was_grounded;

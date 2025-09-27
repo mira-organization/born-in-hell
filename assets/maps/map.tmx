@@ -36,6 +36,13 @@
     </object>
    </objectgroup>
   </tile>
+  <tile id="3098">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0.90625" y="15.9688">
+     <polygon points="0,0 15,-14.75 15.0938,-0.09375"/>
+    </object>
+   </objectgroup>
+  </tile>
  </tileset>
  <imagelayer id="4" name="Background" offsetx="1" offsety="-303" repeatx="1">
   <image source="../textures/background.png" width="1536" height="1024"/>
@@ -237,10 +244,14 @@
 </data>
  </layer>
  <objectgroup id="7" name="Interact">
-  <object id="2" name="DoorTest" x="1344.67" y="472" width="35.3333" height="72.6667"/>
+  <object id="2" name="DoorTest" type="observe" x="1344.67" y="472" width="35.3333" height="72.6667"/>
  </objectgroup>
- <objectgroup id="3" name="Player">
-  <object id="1" name="Player Position" x="96.5" y="604">
+ <objectgroup id="3" name="Entities">
+  <object id="1" name="Player" x="97.5" y="612.5">
+   <properties>
+    <property name="base_health" type="int" value="300"/>
+    <property name="health" type="int" value="200"/>
+   </properties>
    <point/>
   </object>
  </objectgroup>

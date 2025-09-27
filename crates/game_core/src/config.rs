@@ -113,14 +113,12 @@ pub struct InputConfig {
     pub inspector: String,
     pub system_info: String,
     pub gizmos_boxen: String,
-
-    pub movement_forward: String,
-    pub movement_backward: String,
+    
     pub movement_left: String,
     pub movement_right: String,
     pub movement_jump: String,
-    pub movement_sprint: String,
-    pub movement_crouch: String
+    
+    pub interact: String,
 }
 
 impl Default for InputConfig {
@@ -129,23 +127,41 @@ impl Default for InputConfig {
             inspector: String::from("F1"),
             system_info: String::from("F3"),
             gizmos_boxen: String::from("F9"),
-
-            movement_forward: String::from("W"),
-            movement_backward: String::from("S"),
+            
             movement_left: String::from("A"),
             movement_right: String::from("D"),
             movement_jump: String::from("Space"),
-            movement_sprint: String::from("ShiftLeft"),
-            movement_crouch: String::from("C")
+            
+            interact: String::from("E")
         }
     }
 }
 
 impl InputConfig {
     pub fn get_inspector_key(&self) -> KeyCode {
-        convert(self.inspector.as_str()).unwrap_or_else(|| KeyCode::F12)
+        convert(self.inspector.as_str()).unwrap_or_else(|| KeyCode::F1)
     }
 
+    pub fn get_gizmo_box_key(&self) -> KeyCode {
+        convert(self.gizmos_boxen.as_str()).unwrap_or_else(|| KeyCode::F9)
+    }
+
+    pub fn get_move_left_key(&self) -> KeyCode {
+        convert(self.movement_left.as_str()).unwrap_or_else(|| KeyCode::KeyA)
+    }
+
+    pub fn get_move_right_key(&self) -> KeyCode {
+        convert(self.movement_right.as_str()).unwrap_or_else(|| KeyCode::KeyD)
+    }
+
+    pub fn get_jump_key(&self) -> KeyCode {
+        convert(self.movement_jump.as_str()).unwrap_or_else(|| KeyCode::Space)
+    }
+
+    pub fn get_interact_key(&self) -> KeyCode {
+        convert(self.interact.as_str()).unwrap_or_else(|| KeyCode::KeyE)
+    }
+    
 }
 
 // =================================================================================================

@@ -13,10 +13,12 @@ gizmos_boxen = "F9"
 #                 Movement                   #
 ##############################################
 
-movement_forward = "W"
-movement_backward = "S"
 movement_left = "A"
 movement_right = "D"
 movement_jump = "Space"
-movement_sprint = "ShiftLeft"
-movement_crouch = "C"
+
+##############################################
+#                  Overlay                   #
+##############################################
+
+interact = "E"
