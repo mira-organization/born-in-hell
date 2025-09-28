@@ -166,6 +166,10 @@ impl InputConfig {
         convert(self.inspector.as_str()).unwrap_or_else(|| KeyCode::F1)
     }
 
+    pub fn get_system_info_key(&self) -> KeyCode {
+        convert(self.system_info.as_str()).unwrap_or_else(|| KeyCode::F3)
+    }
+
     pub fn get_gizmo_box_key(&self) -> KeyCode {
         convert(self.gizmos_boxen.as_str()).unwrap_or_else(|| KeyCode::F9)
     }

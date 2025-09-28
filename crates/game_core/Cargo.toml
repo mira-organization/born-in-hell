@@ -42,7 +42,7 @@ features = ["parse", "display"]
 
 # Fetch system information for windows, linux and Mac
 [dependencies.sysinfo]
-version = "0.37.0"
+version = "0.37.1"
 
 # NVML for NVIDIA cards under linux
 [target.'cfg(target_os = "linux")'.dependencies.nvml]
@@ -71,5 +71,3 @@ default-features = false
 
 [dependencies.thiserror]
 version = "^2.0"
-
-

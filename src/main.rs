@@ -20,7 +20,7 @@ use dotenvy::dotenv;
 use tracing_subscriber::fmt::writer::BoxMakeWriter;
 use tracing_subscriber::Layer;
 use game_core::config::GlobalConfig;
-use game_core::debug::WorldInspectorState;
+use game_core::debug::{BuildInfo, WorldInspectorState};
 use game_core::states::AppState;
 use crate::manager::ManagerPlugin;
 
@@ -76,8 +76,15 @@ fn main() {
 /// - `config`: [`GlobalConfig`] containing window configuration.
 #[coverage(off)]
 fn init_bevy_app(app: &mut App, config: &GlobalConfig) {
+    let build = BuildInfo {
+        app_name: "Game Version",
+        app_version: env!("CARGO_PKG_VERSION"),
+        bevy_version: "0.16.1",
+    };
+
     app
         .insert_resource(config.clone())
+        .insert_resource(build)
         .add_plugins(DefaultPlugins.set(
             WindowPlugin {
                 primary_window: Some(Window {
