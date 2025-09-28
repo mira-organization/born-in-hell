@@ -67,13 +67,20 @@ impl GlobalConfig {
 //
 // =================================================================================================
 
+/// Serializable graphics configuration for windowing and rendering.
+/// Stores human-readable strings (e.g., resolution `"1270x720"`, backend `"AUTO"`)
+/// and toggles for fullscreen and vertical sync.
 #[derive(Resource, Deserialize, Serialize, Clone, Debug)]
 pub struct GraphicsConfig {
+    /// Window resolution string in the form `"<width>x<height>"`.
     pub window_resolution: String,
 
+    /// Whether to start in fullscreen mode.
     pub fullscreen: bool,
+    /// Whether to enable vertical sync.
     pub vsync: bool,
 
+    /// Requested graphics backend (e.g., `"AUTO"`, `"VULKAN"`, `"DX12"`, `"METAL"`).
     pub video_backend: String,
 }
 
@@ -89,12 +96,19 @@ impl Default for GraphicsConfig {
 }
 
 impl GraphicsConfig {
+
+    /// Parses and returns the configured window width in pixels.
+    ///
+    /// Falls back to `1280.0` if parsing fails.
     pub fn get_window_width(&self) -> f32 {
         let (width, _) = parse_resolution(self.window_resolution.as_str())
             .unwrap_or_else(|_| (1280.0, 720.0));
         width
     }
 
+    /// Parses and returns the configured window height in pixels.
+    ///
+    /// Falls back to `720.0` if parsing fails.
     pub fn get_window_height(&self) -> f32 {
         let (_, height) = parse_resolution(self.window_resolution.as_str())
             .unwrap_or_else(|_| (1280.0, 720.0));
@@ -108,16 +122,26 @@ impl GraphicsConfig {
 //
 // =================================================================================================
 
+/// Serializable input configuration mapping high-level actions to key names.
+/// Stores human-readable key strings (e.g., "F1", "Space", "A") that are later
+/// converted into engine `KeyCode`s at runtime.
 #[derive(Resource, Deserialize, Serialize, Clone, Debug)]
 pub struct InputConfig {
+    /// Toggle developer inspector overlay.
     pub inspector: String,
+    /// Toggle system information overlay.
     pub system_info: String,
+    /// Toggle gizmo/boxes visualization.
     pub gizmos_boxen: String,
-    
+
+    /// Move character left.
     pub movement_left: String,
+    /// Move character right.
     pub movement_right: String,
+    /// Trigger jump action.
     pub movement_jump: String,
-    
+
+    /// Context-sensitive interaction (e.g., talk, use).
     pub interact: String,
 }
 
@@ -127,11 +151,11 @@ impl Default for InputConfig {
             inspector: String::from("F1"),
             system_info: String::from("F3"),
             gizmos_boxen: String::from("F9"),
-            
+
             movement_left: String::from("A"),
             movement_right: String::from("D"),
             movement_jump: String::from("Space"),
-            
+
             interact: String::from("E")
         }
     }
@@ -161,7 +185,7 @@ impl InputConfig {
     pub fn get_interact_key(&self) -> KeyCode {
         convert(self.interact.as_str()).unwrap_or_else(|| KeyCode::KeyE)
     }
-    
+
 }
 
 // =================================================================================================
@@ -170,7 +194,15 @@ impl InputConfig {
 //
 // =================================================================================================
 
-#[inline]
+/// Parses a resolution string in the form `"<width>x<height>"` (case-insensitive `x`)
+/// into a pair of positive floating-point dimensions.
+///
+/// Accepts optional surrounding whitespace and trims each side. Width and
+/// height must parse to numbers greater than zero; otherwise an error string
+/// is returned.
+///
+/// # Parameters
+/// * `s` - Input string like `"1280x720"` or `"1920X1080"`.
 fn parse_resolution(s: &str) -> Result<(f32, f32), String> {
     let (w_str, h_str) = s
         .trim()

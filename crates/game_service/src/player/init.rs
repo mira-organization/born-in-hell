@@ -1,18 +1,13 @@
 use std::collections::HashMap;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
-use tiled::{LayerType, ObjectShape, TileLayer};
 use game_core::animation::{Animation, Animator};
-use game_core::config::GlobalConfig;
-use game_core::player::{Player, PlayerBody, GRAVITY};
+use game_core::player::{Player, PlayerBody};
 use game_core::states::AppState;
 use game_core::tiled::{LevelData, ObjectLayers};
-use game_core::tiled::objects::{DoorEntered, DoorOverlap, DoorSensor};
-use game_core::tiled::properties::{ObjectShapeExt, PropertyValueExt};
+use game_core::tiled::properties::PropertyValueExt;
 use game_core::world::tiled_to_world_position;
 
-#[derive(Resource, Default)]
-struct CollisionBuilt(bool);
 
 pub struct PlayerInitService;
 
@@ -20,117 +15,38 @@ impl Plugin for PlayerInitService {
 
     #[coverage(off)]
     fn build(&self, app: &mut App) {
-        app.init_resource::<CollisionBuilt>();
-
-        app.add_systems(OnEnter(AppState::Preload), init_player_loader)
-
-            .add_systems(Update, (
-                handle_player_input,
-                update_player_animations
-                    .after(handle_player_input),
-                build_tile_colliders_once
-            ).run_if(in_state(AppState::Preload)))
-
-            .add_systems(Update, (door_observer, door_interact, on_door_entered).run_if(in_state(AppState::Preload)))
-
-            .add_systems(FixedUpdate, (handle_collisions,update_physics.before(handle_collisions))
-                .run_if(in_state(AppState::Preload)));
+        app.add_systems(OnEnter(AppState::Preload), init_player_loader);
     }
 }
 
+/// Registers the player initialization system for Tiled object layers.
+/// Associates the `"Entities"` layer with the `init_player` system so it
+/// can be invoked after a map is loaded and parsed.
+///
+/// # Parameters
+/// * `object_layers` - Registry of object layers and their loader systems.
+/// * `commands` - Used to register the `init_player` system.
 #[coverage(off)]
 fn init_player_loader(
     mut object_layers: ResMut<ObjectLayers>,
     mut commands: Commands
 ) {
     object_layers.loader_systems.insert(String::from("Entities"), commands.register_system(init_player));
-    object_layers.loader_systems.insert(String::from("Interact"), commands.register_system(door_test));
 }
 
-#[coverage(off)]
-fn door_test(
-    mut commands: Commands,
-    object_layers: Res<ObjectLayers>,
-    level_data: Res<LevelData>
-) {
-    let Some(map) = level_data.map.as_ref() else { return; };
-    let Some(object) = object_layers.get_data("Interact", "DoorTest") else { return; };
-    if !object.user_type.eq_ignore_ascii_case(&"observe") { return; }
-
-    let width = object.shape.get_width();
-    let height = object.shape.get_height();
-
-    let origin = tiled_to_world_position(Vec2::new(object.x, object.y), map);
-    let center = origin + Vec2::new(width * 0.5, height * 0.5);
-
-    commands.spawn((
-        Name::new("DoorSensor"),
-        DoorSensor,
-        Transform::from_xyz(center.x, center.y - height, 0.0),
-        GlobalTransform::IDENTITY,
-        Visibility::Visible,
-        InheritedVisibility::VISIBLE,
-        RigidBody::Fixed,
-        Collider::cuboid(width * 0.5, height * 0.5),
-        Sensor,
-        ActiveEvents::COLLISION_EVENTS,
-        ActiveCollisionTypes::all(),
-        CollisionGroups::new(Group::ALL, Group::ALL)
-    ));
-}
-
-#[coverage(off)]
-fn door_observer(
-    mut ev: EventReader<CollisionEvent>,
-    door_q: Query<Entity, With<DoorSensor>>,
-    player_q: Query<Entity, With<Player>>,
-    mut overlap: ResMut<DoorOverlap>,
-) {
-    for e in ev.read() {
-        match e {
-            CollisionEvent::Started(a, b, _) => {
-                let a_is_door = door_q.get(*a).is_ok();
-                let b_is_door = door_q.get(*b).is_ok();
-                let a_is_player = player_q.get(*a).is_ok();
-                let b_is_player = player_q.get(*b).is_ok();
-                if (a_is_door && b_is_player) || (b_is_door && a_is_player) {
-                    overlap.inside = true;
-                }
-            }
-            CollisionEvent::Stopped(a, b, _) => {
-                let a_is_door = door_q.get(*a).is_ok();
-                let b_is_door = door_q.get(*b).is_ok();
-                let a_is_player = player_q.get(*a).is_ok();
-                let b_is_player = player_q.get(*b).is_ok();
-                if (a_is_door && b_is_player) || (b_is_door && a_is_player) {
-                    overlap.inside = false;
-                }
-            }
-        }
-    }
-}
-
-#[coverage(off)]
-fn door_interact(
-    input: Res<ButtonInput<KeyCode>>,
-    overlap: Res<DoorOverlap>,
-    global_config: Res<GlobalConfig>,
-    mut writer: EventWriter<DoorEntered>,
-) {
-    if !overlap.inside { return; }
-    let interact_key = global_config.input_config.get_interact_key();
-    if input.just_pressed(interact_key) {
-        writer.write(DoorEntered);
-    }
-}
-
-#[coverage(off)]
-fn on_door_entered(mut ev: EventReader<DoorEntered>) {
-    for _ in ev.read() {
-        info!("Door Entered");
-    }
-}
-
+/// Spawns the player entity from Tiled map data.
+/// Looks up the `"Player"` object in the `"Entities"` layer, converts the
+/// Tiled position to world space, builds a texture atlas layout, configures
+/// animations (`idle`, `run`, `jump`), sets up physics (capsule collider,
+/// kinematic character controller), and applies optional properties
+/// (`health`, `base_health`) from the Tiled object.
+///
+/// # Parameters
+/// * `commands` - Spawns the player, tiles, and related components.
+/// * `object_layers` - Access to parsed Tiled object-layer data.
+/// * `texture_atlas_layouts` - Asset storage to create/hold atlas layouts.
+/// * `level_data` - Provides the loaded Tiled map for coordinate conversion.
+/// * `asset_server` - Loads the player sprite texture.
 #[coverage(off)]
 fn init_player(
     mut commands: Commands,
@@ -248,260 +164,4 @@ fn init_player(
     } else {
         error!("Player Data not found");
     }
-}
-
-#[coverage(off)]
-fn update_player_animations(
-    mut player_query : Query<(&mut Player,&mut Sprite,&mut Animator)>
-) {
-    if let Ok((player,mut sprite,mut animator)) = player_query.single_mut() {
-
-        if player.body.horizontal > 0 {
-            sprite.flip_x = false;
-        }
-        else if player.body.horizontal < 0 {
-            sprite.flip_x = true;
-        }
-
-        if !player.physic.grounded {
-            animator.animation = "jump".to_string();
-        }
-        else if player.body.horizontal != 0 {
-            animator.animation = "run".to_string();
-        }
-        else {
-            animator.animation = "idle".to_string();
-        }
-    }
-}
-
-#[coverage(off)]
-fn handle_player_input(
-    input : Res<ButtonInput<KeyCode>>,
-    mut player_query : Query<&mut Player>,
-    global_config: Res<GlobalConfig>
-) {
-    let left_key = global_config.input_config.get_move_left_key();
-    let right_key = global_config.input_config.get_move_right_key();
-    let jump_key = global_config.input_config.get_jump_key();
-
-    if let Ok(mut player) = player_query.single_mut() {
-        player.body.horizontal = 0;
-        if input.pressed(left_key) {
-            player.body.horizontal -= 1;
-        }
-        if input.pressed(right_key) {
-            player.body.horizontal += 1;
-        }
-
-        if input.just_pressed(jump_key) && player.physic.grounded {
-            player.physic.jump_timer = player.physic.jump_time;
-        }
-
-        if input.just_released(jump_key) {
-            player.physic.jump_timer = 0.;
-        }
-    }
-}
-
-#[coverage(off)]
-fn update_physics(
-    time : Res<Time<Fixed>>,
-    mut player_query : Query<(&mut KinematicCharacterController, &mut Player)>,
-) {
-    for(mut kcc, mut player) in player_query.iter_mut() {
-        player.physic.velocity.x = player.body.horizontal as f32 * player.physic.speed;
-
-        if player.physic.jump_timer > 0. && player.physic.grounded {
-            let jump_force = player.physic.jump_force;
-            player.physic.grounded = false;
-            player.physic.velocity.y = jump_force;
-        }
-
-        if !player.physic.grounded {
-            player.physic.velocity.y -= GRAVITY * time.delta_secs();
-        }
-
-        let max_fall = 1200.0;
-        if player.physic.velocity.y < -max_fall {
-            player.physic.velocity.y = -max_fall;
-        }
-
-        let motion = player.physic.velocity * time.delta_secs();
-        kcc.translation = Some(motion);
-        player.physic.jump_timer -= time.delta_secs();
-        if player.physic.jump_timer < 0.0 { player.physic.jump_timer = 0.0; }
-    }
-}
-
-#[coverage(off)]
-fn handle_collisions(
-    mut query: Query<(&KinematicCharacterControllerOutput, &mut Player)>,
-) {
-    for (kcc_out, mut player) in query.iter_mut() {
-        let was_grounded = player.physic.grounded;
-        player.physic.grounded = kcc_out.grounded;
-        if player.physic.grounded && player.physic.velocity.y < 0. {
-            player.physic.velocity.y = 0.;
-        }
-
-        let _ = was_grounded;
-    }
-}
-
-#[coverage(off)]
-fn build_tile_colliders_once(
-    mut commands: Commands,
-    mut built: ResMut<CollisionBuilt>,
-    level_data: Res<LevelData>,
-) {
-    if built.0 { return; }
-    let Some(map) = level_data.map.as_ref() else { return; };
-    built.0 = true;
-
-    let tw = map.tile_width as f32;
-    let th = map.tile_height as f32;
-    let mw = map.width as i32;
-    let mh = map.height as i32;
-
-    let parent = commands.spawn((
-        Name::new("CollisionWorld"),
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        GlobalTransform::IDENTITY,
-        Visibility::Visible,
-        InheritedVisibility::VISIBLE,
-    )).id();
-
-    for layer in map.layers() {
-        let LayerType::Tiles(tile_layer) = layer.layer_type() else { continue };
-        let TileLayer::Finite(ld) = tile_layer else { continue };
-
-        for x in 0..mw {
-            for y in 0..mh {
-                let tx = x;
-                let ty_inv = mh - 1 - y;
-                let Some(tile) = ld.get_tile(tx, ty_inv) else { continue };
-
-                let ts_index = tile.tileset_index();
-                let tileset = &map.tilesets()[ts_index];
-                let id = tile.id();
-
-                let mut spawned_any = false;
-
-                if let Some(tile_ref) = tileset.get_tile(id) {
-                    if let Some(ol) = tile_ref.collision.as_ref() {
-                        for obj in ol.object_data() {
-                            match &obj.shape {
-                                ObjectShape::Rect { width, height } => {
-                                    let (cx, cy) = world_center_for_rect(tx, ty_inv, *width, *height, obj.x, obj.y, tw, th, mh);
-                                    commands.spawn((
-                                        Name::new("TileRect"),
-                                        RigidBody::Fixed,
-                                        Collider::cuboid(*width * 0.5, *height * 0.5),
-                                        Transform::from_xyz(cx, cy, 0.0),
-                                        GlobalTransform::IDENTITY,
-                                        Visibility::Visible,
-                                        InheritedVisibility::VISIBLE,
-                                        ChildOf(parent),
-                                    ));
-                                    spawned_any = true;
-                                }
-                                ObjectShape::Ellipse { width, height } => {
-                                    let r = width.min(*height) * 0.5;
-                                    let (cx, cy) = world_center_for_rect(tx, ty_inv, *width, *height, obj.x, obj.y, tw, th, mh);
-                                    commands.spawn((
-                                        Name::new("TileEllipse"),
-                                        RigidBody::Fixed,
-                                        Collider::ball(r),
-                                        Transform::from_xyz(cx, cy, 0.0),
-                                        GlobalTransform::IDENTITY,
-                                        Visibility::Visible,
-                                        InheritedVisibility::VISIBLE,
-                                        ChildOf(parent),
-                                    ));
-                                    spawned_any = true;
-                                }
-                                ObjectShape::Polygon { points } => {
-                                    let world = polygon_world_points(tx, ty_inv, points, obj.x, obj.y, tw, th, mh);
-                                    if world.len() >= 3 {
-                                        let center = centroid(&world);
-                                        let local: Vec<Vec2> = world.iter().map(|p| *p - center).collect();
-                                        if let Some(ch) = Collider::convex_hull(&local) {
-                                            commands.spawn((
-                                                Name::new("TilePoly"),
-                                                RigidBody::Fixed,
-                                                ch,
-                                                Transform::from_xyz(center.x, center.y, 0.0),
-                                                GlobalTransform::IDENTITY,
-                                                Visibility::Visible,
-                                                InheritedVisibility::VISIBLE,
-                                                ChildOf(parent),
-                                            ));
-                                            spawned_any = true;
-                                        }
-                                    }
-                                }
-                                ObjectShape::Polyline { points } => {
-                                    let world = polygon_world_points(tx, ty_inv, points, obj.x, obj.y, tw, th, mh);
-                                    if world.len() >= 2 {
-                                        let center = centroid(&world);
-                                        let local: Vec<Vec2> = world.iter().map(|p| *p - center).collect();
-                                        commands.spawn((
-                                            Name::new("TilePolyline"),
-                                            RigidBody::Fixed,
-                                            Collider::polyline(local, None),
-                                            Transform::from_xyz(center.x, center.y, 0.0),
-                                            GlobalTransform::IDENTITY,
-                                            Visibility::Visible,
-                                            InheritedVisibility::VISIBLE,
-                                            ChildOf(parent),
-                                        ));
-                                        spawned_any = true;
-                                    }
-                                }
-                                _ => { warn!("Unhandled collision shape"); }
-                            }
-                        }
-                    }
-                }
-
-                if !spawned_any && layer.name == "Collision" {
-                    let cx = (x as f32 + 0.5) * tw;
-                    let cy = (y as f32 + 0.5) * th;
-                    commands.spawn((
-                        Name::new("CollisionBox"),
-                        RigidBody::Fixed,
-                        Collider::cuboid(tw * 0.5, th * 0.5),
-                        Transform::from_xyz(cx, cy, 0.0),
-                        GlobalTransform::IDENTITY,
-                        Visibility::Visible,
-                        InheritedVisibility::VISIBLE,
-                        ChildOf(parent),
-                    ));
-                }
-            }
-        }
-    }
-}
-
-
-#[coverage(off)]
-fn centroid(pts: &[Vec2]) -> Vec2 {
-    if pts.is_empty() { return Vec2::ZERO; }
-    let sum = pts.iter().fold(Vec2::ZERO, |acc, p| acc + *p);
-    sum / (pts.len() as f32)
-}
-
-#[coverage(off)]
-fn world_center_for_rect(tx: i32, ty_inv: i32, w: f32, h: f32, ox: f32, oy: f32, tw: f32, th: f32, mh: i32) -> (f32, f32) {
-    let x0 = tx as f32 * tw + ox + w * 0.5;
-    let y0 = (mh as f32 - 1.0 - ty_inv as f32) * th + (th - (oy + h * 0.5));
-    (x0, y0)
-}
-
-#[coverage(off)]
-fn polygon_world_points(tx: i32, ty_inv: i32, pts: &[(f32, f32)], ox: f32, oy: f32, tw: f32, th: f32, mh: i32) -> Vec<Vec2> {
-    let base_x = tx as f32 * tw + ox;
-    let base_y = (mh as f32 - 1.0 - ty_inv as f32) * th + (th - oy);
-    pts.iter().map(|(px, py)| Vec2::new(base_x + *px, base_y - *py)).collect()
 }

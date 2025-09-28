@@ -13,22 +13,43 @@ impl Plugin for AnimationModule {
     }
 }
 
-#[derive(Component,Default)]
+/// Component that manages sprite-sheet-based animations for an entity's `Sprite`.
+/// Keeps track of the active and previous animation, a registry of available
+/// animations, and a countdown timer used to advance frames.
+#[derive(Component, Default)]
 pub struct Animator {
-    pub animation : String,
-    pub previous_animation : String,
-    pub animations : HashMap<String, Animation>,
-    pub timer : f32,
+    /// Name of the currently active animation. Must exist in `animations`.
+    pub animation: String,
+    /// Name of the animation that was active in the previous update tick.
+    pub previous_animation: String,
+    /// Registry of available animations addressed by name.
+    pub animations: HashMap<String, Animation>,
+    /// Remaining time (in seconds) until the next frame advance.
+    pub timer: f32,
 }
 
-#[derive(Clone,Default)]
+/// Describes a single animation sequence within a texture atlas by its frame
+/// range, per-frame duration, and whether it loops when reaching the end.
+#[derive(Clone, Default)]
 pub struct Animation {
-    pub frame_duration : f32,
-    pub start : usize,
-    pub end : usize,
-    pub looping : bool,
+    /// Duration (in seconds) each frame is displayed.
+    pub frame_duration: f32,
+    /// Inclusive start frame index within the atlas (0-based in code usage).
+    pub start: usize,
+    /// Inclusive end frame index within the atlas.
+    pub end: usize,
+    /// Whether the animation restarts from `start` after the last frame.
+    pub looping: bool,
 }
 
+/// Advances sprite animations over time and handles animation switching,
+/// frame progression, and looping using the entity's `Animator` state and
+/// the `Sprite` texture atlas index.
+///
+/// # Parameters
+/// * `time` - Global time resource used to decrement animation timers.
+/// * `animator_query` - Query over entities providing mutable access to
+///   their `Animator` and `Sprite` to update timers and atlas indices.
 #[coverage(off)]
 fn update_animations(
     time : Res<Time>,

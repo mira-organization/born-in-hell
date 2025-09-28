@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="200" height="45" tilewidth="16" tileheight="16" infinite="0" nextlayerid="8" nextobjectid="3">
  <tileset firstgid="1" name="test" tilewidth="16" tileheight="16" tilecount="4096" columns="64">
-  <image source="../textures/test.png" width="1024" height="1024"/>
+  <image source="../textures/tile_sets/test.png" width="1024" height="1024"/>
   <tile id="2275">
    <objectgroup draworder="index" id="2">
     <object id="2" x="0.0472352" y="0.0761759" width="11.0049" height="15.898"/>
@@ -45,7 +45,7 @@
   </tile>
  </tileset>
  <imagelayer id="4" name="Background" offsetx="1" offsety="-303" repeatx="1">
-  <image source="../textures/background.png" width="1536" height="1024"/>
+  <image source="../textures/images/background.png" width="1536" height="1024"/>
  </imagelayer>
  <layer id="1" name="Collision" width="200" height="45">
   <data encoding="csv">
