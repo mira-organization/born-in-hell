@@ -17,6 +17,11 @@ members = [
     "crates/game_ui"
 ]
 
+[features]
+vram_nvml = []   # NVIDIA per-process via NVML (Windows/Linux)
+vram_dxgi = []   # Windows adapter-wide via DXGI (AMD & NVIDIA)
+vram_metal = []  # macOS device-wide via Metal
+
 ##############################################
 #                 Profiles                   #
 ##############################################

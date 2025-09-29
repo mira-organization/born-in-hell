@@ -9,9 +9,11 @@ pub mod player;
 pub mod tiled;
 pub mod world;
 pub mod animation;
+pub mod v_ram_detection;
 
 use bevy::prelude::*;
 use crate::animation::AnimationModule;
+use crate::debug::debug_info::DebugInfoModule;
 use crate::player::PlayerModule;
 use crate::tiled::TiledModule;
 
@@ -24,7 +26,7 @@ impl Plugin for GameCorePlugin {
 
     #[coverage(off)]
     fn build(&self, app: &mut App) {
-        app.add_plugins((PlayerModule, AnimationModule, TiledModule));
+        app.add_plugins((PlayerModule, AnimationModule, TiledModule, DebugInfoModule));
     }
 
 }
