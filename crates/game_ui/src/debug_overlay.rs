@@ -126,6 +126,7 @@ fn render_debug_text(
      V-RAM: {}\n\
      CPU: ({:>4.1}% / {:>4.1}%)  RAM: {}  Backend: {}\n\
      \n\
+     Level Name: {}\n\
      Player Location (x: {:.2}, y: {:.2})\n\
      \n\
      {}: Toggle Debug Overlay | {}: Toggle Gizmos",
@@ -137,6 +138,7 @@ fn render_debug_text(
         snap.app_cpu_percent,
         mem_str,
         snap.backend_str,
+        snap.level_name,
         snap.player_pos.x, snap.player_pos.y,
         snap.key_debug_info,
         snap.key_gizmos,

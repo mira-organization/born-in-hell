@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="200" height="45" tilewidth="16" tileheight="16" infinite="0" nextlayerid="8" nextobjectid="3">
+ <properties>
+  <property name="level_name" value="level.name.mira-village"/>
+ </properties>
  <tileset firstgid="1" name="test" tilewidth="16" tileheight="16" tilecount="4096" columns="64">
   <image source="../textures/tile_sets/test.png" width="1024" height="1024"/>
   <tile id="2275">

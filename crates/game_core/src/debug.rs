@@ -93,6 +93,7 @@ pub mod debug_info {
     use crate::player::Player;
     use crate::states::AppState;
     use crate::tiled::LevelData;
+    use crate::tiled::properties::PropertyValueExt;
     use crate::v_ram_detection::{detect_v_ram_best_effort, fmt_bytes};
 
     /// Snapshot of runtime diagnostics and labels used by the on-screen debug
@@ -112,9 +113,12 @@ pub mod debug_info {
         /// Human-readable V-RAM usage/label for display.
         pub v_ram_label: String,
 
-        // Cam / World
         /// Player world position used for HUD display.
         pub player_pos: Vec2,
+        /// Current room name.
+        pub level_name: String,
+        /// Current area name.
+        pub area_name: String,
 
         // Build / Config
         /// Application name.
@@ -252,9 +256,14 @@ pub mod debug_info {
     fn snap_world(
         mut snap: ResMut<DebugSnapshot>,
         player_query: Query<&Transform, With<Player>>,
-        _level_data: Res<LevelData>
+        level_data: Res<LevelData>
     ) {
         snap.player_pos = player_query.single().map(|t| t.translation.xy()).unwrap_or(Vec2::ZERO);
+        if let Some(map) = level_data.map.as_ref() {
+            if let Some(level_name) = map.properties.get("level_name") {
+                snap.level_name = level_name.as_str().expect("REASON").to_string();
+            }
+        }
     }
 
     /// Populates build strings and graphics backend info for the overlay and record

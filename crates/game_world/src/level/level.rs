@@ -17,7 +17,7 @@ fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
 ) {
-    let map_handle = TiledMapHandle(asset_server.load("maps/map.tmx"));
+    let map_handle = TiledMapHandle(asset_server.load("maps/level_0001.tmx"));
     commands.spawn((
         Name::new("Level"),
         TiledMapBundle {

@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-pub const GRAVITY : f32 = 300.0;
+pub const GRAVITY : f32 = 1000.0;
 
 pub struct PlayerModule;
 
@@ -88,7 +88,7 @@ impl Default for PlayerPhysic {
     fn default() -> Self {
         Self {
             speed: 200.0,
-            jump_force: 250.0,
+            jump_force: 420.0,
             velocity: Vec2::new(0., -0.1),
             grounded: false,
             released_jump: false,
