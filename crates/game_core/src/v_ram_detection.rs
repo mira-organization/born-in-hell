@@ -21,6 +21,7 @@
 //! }
 //! ```
 
+
 /// Information about a V-RAM reading.
 #[derive(Debug, Clone, Copy)]
 pub struct VideoRamInfo {
@@ -89,7 +90,7 @@ pub fn query_vram_bytes_nvml_this_process() -> Option<u64> { None }
 /// for that PID (typical single-GPU setups).
 #[cfg(feature = "v_ram_nvml")]
 pub fn query_vram_bytes_nvml_for_pid(pid: u32) -> Option<u64> {
-    use nvml::Nvml;
+    use nvml_wrapper::Nvml;
 
     let nvml = Nvml::init().ok()?;
     let count = nvml.device_count().ok()?;
@@ -119,8 +120,8 @@ pub fn query_vram_bytes_nvml_for_pid(pid: u32) -> Option<u64> {
 }
 
 #[cfg(feature = "v_ram_nvml")]
-fn find_bytes_for_pid(list: Vec<nvml::struct_wrappers::device::ProcessInfo>, pid: u32) -> Option<u64> {
-    use nvml::enums::device::UsedGpuMemory;
+fn find_bytes_for_pid(list: Vec<nvml_wrapper::struct_wrappers::device::ProcessInfo>, pid: u32) -> Option<u64> {
+    use nvml_wrapper::enums::device::UsedGpuMemory;
 
 
     for p in list {

@@ -15,7 +15,7 @@ path = "src/lib.rs"
 # Game Core for handle global states and resources
 [dependencies.game_core]
 path = "../game_core"
-
+features = ["v_ram_nvml", "v_ram_dxgi", "v_ram_metal"]
 
 ##############################################
 #               Dependencies                 #

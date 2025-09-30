@@ -18,9 +18,9 @@ members = [
 ]
 
 [features]
-vram_nvml = []   # NVIDIA per-process via NVML (Windows/Linux)
-vram_dxgi = []   # Windows adapter-wide via DXGI (AMD & NVIDIA)
-vram_metal = []  # macOS device-wide via Metal
+v_ram_nvml = []   # NVIDIA per-process via NVML (Windows/Linux)
+v_ram_dxgi = []   # Windows adapter-wide via DXGI (AMD & NVIDIA)
+v_ram_metal = []  # macOS device-wide via Metal
 
 ##############################################
 #                 Profiles                   #
