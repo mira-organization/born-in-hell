@@ -1583,7 +1583,7 @@ dependencies = [
 
 [[package]]
 name = "born-in-hell"
-version = "0.1.0"
+version = "0.0.0-alpha.0"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
