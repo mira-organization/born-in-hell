@@ -278,15 +278,35 @@ jobs:
             sleep 5
           done
           
-          # Limit length and clean up markdown for Discord
-          RELEASE_NOTES=$(echo "$RELEASE_NOTES" | head -c 1000 | sed 's/^#\+/•/g')
+          # Process changelog for Discord (make it more user-friendly)
+          DISCORD_NOTES=$(echo "$RELEASE_NOTES" | \
+            # Remove commit hashes and links
+            sed 's/\[[a-f0-9]\{7\}\][^)]*//g' | \
+            # Remove issue references at end of lines
+            sed 's/, closes \[#[0-9]*\][^)]*//g' | \
+            # Convert markdown headers to emojis and make them stand out
+            sed 's/^### Features/🚀 **NEW FEATURES:**/' | \
+            sed 's/^### Bug Fixes/🐛 **BUG FIXES:**/' | \
+            # Remove feature/bug fix prefixes and issue numbers, add bullet points
+            sed 's/\* \*\*#[0-9]*:\*\* /  • /' | \
+            # Keep only Features and Bug Fixes sections
+            awk '/🚀 \*\*NEW FEATURES:\*\*/,/🐛 \*\*BUG FIXES:\*\*/ {if(/🐛 \*\*BUG FIXES:\*\*/) found_bugs=1; if(!found_bugs || /🐛 \*\*BUG FIXES:\*\*/) print}; /🐛 \*\*BUG FIXES:\*\*/,$ {if(found_bugs) print}' | \
+            # Limit to 15 most important items
+            head -n 15 | \
+            # Clean up empty lines
+            grep -v '^[[:space:]]*$')
+          
+          # If still too long, show summary
+          if [[ ${#DISCORD_NOTES} -gt 800 ]]; then
+            DISCORD_NOTES="🎉 New features and improvements added%0A🐛 Several bug fixes and optimizations%0A📝 See full changelog on GitHub for details"
+          fi
           
           # Escape special characters for GitHub Actions
-          RELEASE_NOTES="${RELEASE_NOTES//'%'/'%25'}"
-          RELEASE_NOTES="${RELEASE_NOTES//$'\n'/'%0A'}"
-          RELEASE_NOTES="${RELEASE_NOTES//$'\r'/'%0D'}"
+          DISCORD_NOTES="${DISCORD_NOTES//'%'/'%25'}"
+          DISCORD_NOTES="${DISCORD_NOTES//$'\n'/'%0A'}"
+          DISCORD_NOTES="${DISCORD_NOTES//$'\r'/'%0D'}"
           
-          echo "notes=$RELEASE_NOTES" >> $GITHUB_OUTPUT
+          echo "notes=$DISCORD_NOTES" >> $GITHUB_OUTPUT
 
       - name: Send Discord notification
         uses: Ilshidur/action-discord@master
