@@ -22,10 +22,10 @@ jobs:
     name: Semantic Release
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.semantic.outputs.new_release_version }}
-      published: ${{ steps.semantic.outputs.new_release_published }}
-      tag: ${{ steps.semantic.outputs.new_release_git_tag }}
-      prerelease: ${{ steps.semantic.outputs.new_release_prerelease }}
+      version: ${{ steps.semantic.outputs.new-release-version }}
+      published: ${{ steps.semantic.outputs.new-release-published }}
+      tag: ${{ steps.semantic.outputs.new-release-git-tag }}
+      prerelease: ${{ steps.semantic.outputs.new-release-prerelease }}
     steps:
       - name: "Generate token"
         id: generate_token
