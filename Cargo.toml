@@ -46,7 +46,7 @@ debug = true
 #                  Crates                    #
 ##############################################
 
-# All game relevant structs, events, func etc...
+# All game relevant structs, events, func etc..
 [dependencies.game_core]
 path = "crates/game_core"
 features = ["v_ram_nvml", "v_ram_dxgi", "v_ram_metal"]
