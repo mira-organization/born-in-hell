@@ -7,7 +7,7 @@ permissions:
 on:
   pull_request:
     types: [closed]
-    branches: [staging]
+    branches: [develop]
 
 env:
   binary: born-in-hell
@@ -16,22 +16,22 @@ env:
 
 jobs:
   compute-and-tag:
-    name: Compute next pre-release tag
-
-    if: ${{ github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'develop' }}
+    name: Compute next pre-release tag + bump Cargo.toml
+    if: ${{ github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.version.outputs.TAG_NAME }}
+      create:   ${{ steps.version.outputs.CREATE }}
     steps:
-      - name: Checkout (full history incl. tags)
+      - name: Checkout develop (full history incl. tags)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           lfs: ${{ env.use_git_lfs == 'true' }}
+          ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Fetch tags
-        run: |
-          git fetch --tags --force
+        run: git fetch --tags --force
 
       - name: Determine next version from PR title
         id: version
@@ -40,93 +40,104 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
-
-          # Finde letzten rc-Tag (z. B. v0.1.2-rc)
-          last_tag="$(git tag -l 'v*-rc' --sort=-v:refname | head -n1 || true)"
-
-          if [[ -z "$last_tag" ]]; then
-            # Kein vorheriger rc-Tag → Startwert
-            major=0; minor=1; patch=0
-          else
-            if [[ "$last_tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-rc$ ]]; then
-              major="${BASH_REMATCH[1]}"
-              minor="${BASH_REMATCH[2]}"
-              patch="${BASH_REMATCH[3]}"
-            else
-              echo "Letzter Tag hat unerwartetes Format: $last_tag"
-              exit 1
-            fi
-          fi
-
           title="$PR_TITLE"
+
           shopt -s nocasematch
-          if [[ "$title" =~ ^feat ]]; then
-            patch=$((patch+1))
-          elif [[ "$title" =~ ^base ]]; then
-            minor=$((minor+1))
-            patch=0
+          if [[ "$title" =~ ^feat ]]; then bump="minor";
+          elif [[ "$title" =~ ^fix ]]; then bump="patch";
           else
-            # Fallback: Patch bump (falls du strikt sein willst -> exit 1)
-            patch=$((patch+1))
+            echo "CREATE=false" >> "$GITHUB_OUTPUT"
+            echo "Kein Pre-Release: PR-Titel startet nicht mit feat/fix -> '$title'"
+            exit 0
           fi
           shopt -u nocasematch
 
-          new_tag="v${major}.${minor}.${patch}-rc"
-          echo "TAG_NAME=$new_tag" >> "$GITHUB_OUTPUT"
-          echo "Neuer Tag: $new_tag (PR-Titel: $title)"
+          last_tag="$(git tag -l 'v*-rc' --sort=-v:refname | head -n1 || true)"
+          if [[ -z "$last_tag" ]]; then major=1; minor=0; patch=0;
+          else
+            [[ "$last_tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-rc$ ]] || { echo "Bad tag: $last_tag"; exit 1; }
+            major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"; patch="${BASH_REMATCH[3]}";
+          fi
+          if [[ "$bump" == "minor" ]]; then minor=$((minor+1)); patch=0; else patch=$((patch+1)); fi
 
-      - name: Create and push tag
+          plain="${major}.${minor}.${patch}"
+          tag="v${plain}-rc"
+          echo "TAG_NAME=$tag"     >> "$GITHUB_OUTPUT"
+          echo "PLAIN_VER=$plain"  >> "$GITHUB_OUTPUT"
+          echo "CREATE=true"       >> "$GITHUB_OUTPUT"
+          echo "Neuer Tag: $tag (plain=$plain; bump=$bump)"
+
+      - name: Install cargo-workspaces
+        if: ${{ steps.version.outputs.CREATE == 'true' }}
+        run: cargo install cargo-workspaces --locked
+
+      - name: Bump ALL crate versions + internal deps to ${{ steps.version.outputs.PLAIN_VER }}
+        if: ${{ steps.version.outputs.CREATE == 'true' }}
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.version.outputs.TAG_NAME }}" -m "Pre-release: ${{ steps.version.outputs.TAG_NAME }} (from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }})"
-          git push origin "${{ steps.version.outputs.TAG_NAME }}"
+          set -euo pipefail
+          # --all: alle Workspace-Mitglieder
+          # --exact: schreibt exakte Versionsnummern (keine Carets)
+          # --no-git-tag/commit: wir committen selbst im nächsten Step
+          # -y: non-interactive
+          cargo workspaces version ${{ steps.version.outputs.PLAIN_VER }} \
+            --all --exact --no-git-tag --no-git-commit -y
+
+      - name: Commit version bumps (workspace + crates/*)
+        if: ${{ steps.version.outputs.CREATE == 'true' }}
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore(version): bump workspace to ${{ steps.version.outputs.PLAIN_VER }}"
+            git push origin ${{ github.event.pull_request.base.ref }}
+          fi
+
+      - name: Create and push tag ${{ steps.version.outputs.TAG_NAME }}
+        if: ${{ steps.version.outputs.CREATE == 'true' }}
+        run: |
+          git tag -a "${{ steps.version.outputs.TAG_NAME }}" -m "Pre-release: ${{ steps.version.outputs.TAG_NAME }} (from PR #${{ github.event.pull_request.number }})"
+          git push origin "${{ steps.version.outputs.TAG_NAME }
 
   release-linux:
     needs: compute-and-tag
+    if: ${{ needs.compute-and-tag.outputs.create == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: ${{ env.use_git_lfs == 'true' }}
-
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-08-07
           components: clippy, rustfmt
           targets: x86_64-unknown-linux-gnu
-
       - name: install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             pkg-config libx11-dev libasound2-dev libudev-dev \
             libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev zip
-
       - name: Set Cargo Target Directory
         run: echo "CARGO_TARGET_DIR=target" >> $GITHUB_ENV
-
       - name: Build
         run: cargo build --release --target x86_64-unknown-linux-gnu
-
       - name: Prepare package
         run: |
           mkdir linux
           cp target/x86_64-unknown-linux-gnu/release/${{ env.binary }} linux/
           cp -r assets linux/ || true
           cp -r config linux/ || true
-
       - name: Package as a zip
         working-directory: ./linux
         run: zip --recurse-paths ../${{ env.binary }}.zip .
-
       - name: Upload binaries to artifacts
         uses: actions/upload-artifact@v4
         with:
           path: ${{ env.binary }}.zip
           name: linux
           retention-days: 1
-
       - name: Upload binaries to pre-release
         if: ${{ env.add_binaries_to_github_release == 'true' }}
         uses: svenstaro/upload-release-action@v2
@@ -143,6 +154,7 @@ jobs:
 
   release-windows:
     needs: compute-and-tag
+    if: ${{ needs.compute-and-tag.outputs.create == 'true' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -153,10 +165,8 @@ jobs:
           toolchain: nightly-2025-08-07
           components: clippy, rustfmt
           targets: x86_64-pc-windows-msvc
-
       - name: Build
         run: cargo build --release --target x86_64-pc-windows-msvc
-
       - name: Prepare package
         shell: pwsh
         run: |
@@ -164,18 +174,15 @@ jobs:
           Copy-Item target/x86_64-pc-windows-msvc/release/${{ env.binary }}.exe windows/
           if (Test-Path assets) { Copy-Item assets windows -Recurse }
           if (Test-Path config) { Copy-Item config windows -Recurse }
-
       - name: Package as a zip
         shell: pwsh
         run: Compress-Archive -Path windows/* -DestinationPath ${{ env.binary }}.zip
-
       - name: Upload binaries to artifacts
         uses: actions/upload-artifact@v4
         with:
           path: ${{ env.binary }}.zip
           name: windows
           retention-days: 1
-
       - name: Upload binaries to pre-release
         if: ${{ env.add_binaries_to_github_release == 'true' }}
         uses: svenstaro/upload-release-action@v2
@@ -191,6 +198,7 @@ jobs:
 
   release-macOS-intel:
     needs: compute-and-tag
+    if: ${{ needs.compute-and-tag.outputs.create == 'true' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -201,13 +209,11 @@ jobs:
           toolchain: nightly-2025-08-07
           components: clippy, rustfmt
           targets: x86_64-apple-darwin
-
       - name: Build
         env:
           CFLAGS: -fno-stack-check
           MACOSX_DEPLOYMENT_TARGET: "10.9"
         run: cargo build --release --target x86_64-apple-darwin
-
       - name: Prepare Package
         run: |
           mkdir -p ${{ env.binary }}.app/Contents/MacOS
@@ -215,14 +221,12 @@ jobs:
           cp -r assets ${{ env.binary }}.app/Contents/MacOS/ || true
           cp -r config ${{ env.binary }}.app/Contents/MacOS/ || true
           hdiutil create -fs HFS+ -volname "${{ env.binary }}" -srcfolder ${{ env.binary }}.app ${{ env.binary }}-macOS-intel.dmg
-
       - name: Upload binaries to artifacts
         uses: actions/upload-artifact@v4
         with:
           path: ${{ env.binary }}-macOS-intel.dmg
           name: macOS-intel
           retention-days: 1
-
       - name: Upload binaries to pre-release
         if: ${{ env.add_binaries_to_github_release == 'true' }}
         uses: svenstaro/upload-release-action@v2
@@ -238,6 +242,7 @@ jobs:
 
   release-macOS-apple-silicon:
     needs: compute-and-tag
+    if: ${{ needs.compute-and-tag.outputs.create == 'true' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -248,12 +253,10 @@ jobs:
           toolchain: nightly-2025-08-07
           components: clippy, rustfmt
           targets: aarch64-apple-darwin
-
       - name: Build
         env:
           MACOSX_DEPLOYMENT_TARGET: "11"
         run: cargo build --release --target aarch64-apple-darwin
-
       - name: Prepare Package
         run: |
           mkdir -p ${{ env.binary }}.app/Contents/MacOS
@@ -261,14 +264,12 @@ jobs:
           cp -r assets ${{ env.binary }}.app/Contents/MacOS/ || true
           cp -r config ${{ env.binary }}.app/Contents/MacOS/ || true
           hdiutil create -fs HFS+ -volname "${{ env.binary }}-macOS-apple-silicon" -srcfolder ${{ env.binary }}.app ${{ env.binary }}-macOS-apple-silicon.dmg
-
       - name: Upload binaries to artifacts
         uses: actions/upload-artifact@v4
         with:
           path: ${{ env.binary }}-macOS-apple-silicon.dmg
           name: macOS-apple-silicon
           retention-days: 1
-
       - name: Upload binaries to pre-release
         if: ${{ env.add_binaries_to_github_release == 'true' }}
         uses: svenstaro/upload-release-action@v2
