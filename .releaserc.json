@@ -4,7 +4,7 @@
         "release",
         {
             "name": "beta",
-            "prerelease": "rc"
+            "prerelease": "beta"
         }
     ],
     "plugins": [
