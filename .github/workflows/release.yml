@@ -27,11 +27,19 @@ jobs:
       tag: ${{ steps.semantic.outputs.new_release_git_tag }}
       prerelease: ${{ steps.semantic.outputs.new_release_prerelease }}
     steps:
+      - name: "Generate token"
+        id: generate_token
+        uses: actions/create-github-app-token@v2
+        with:
+            app-id: ${{ secrets.SEMANTIC_RELEASE_APP_ID }}
+            private-key: ${{ secrets.SEMANTIC_RELEASE_PRIVATE_KEY }}
+            owner: ${{ github.repository_owner }}
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
