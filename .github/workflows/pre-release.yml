@@ -40,11 +40,15 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
+
           title="$PR_TITLE"
 
+          # Nur feat/fix zulassen (case-insensitive)
           shopt -s nocasematch
-          if [[ "$title" =~ ^feat ]]; then bump="minor";
-          elif [[ "$title" =~ ^fix ]]; then bump="patch";
+          if [[ "$title" =~ ^feat ]]; then
+            bump="minor"
+          elif [[ "$title" =~ ^fix ]]; then
+            bump="patch"
           else
             echo "CREATE=false" >> "$GITHUB_OUTPUT"
             echo "Kein Pre-Release: PR-Titel startet nicht mit feat/fix -> '$title'"
@@ -52,37 +56,57 @@ jobs:
           fi
           shopt -u nocasematch
 
+          # Letzten rc-Tag finden (Format: vX.Y.Z-rc)
           last_tag="$(git tag -l 'v*-rc' --sort=-v:refname | head -n1 || true)"
-          if [[ -z "$last_tag" ]]; then major=1; minor=0; patch=0;
+
+          if [[ -z "$last_tag" ]]; then
+            # Startwert
+            major=1; minor=0; patch=0
           else
-            [[ "$last_tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-rc$ ]] || { echo "Bad tag: $last_tag"; exit 1; }
-            major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"; patch="${BASH_REMATCH[3]}";
+            if [[ "$last_tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-rc$ ]]; then
+              major="${BASH_REMATCH[1]}"
+              minor="${BASH_REMATCH[2]}"
+              patch="${BASH_REMATCH[3]}"
+            else
+              echo "Letzter Tag hat unerwartetes Format: $last_tag"
+              exit 1
+            fi
           fi
-          if [[ "$bump" == "minor" ]]; then minor=$((minor+1)); patch=0; else patch=$((patch+1)); fi
 
+          if [[ "$bump" == "minor" ]]; then
+            minor=$((minor+1))
+            patch=0
+          else
+            patch=$((patch+1))
+          fi
+
+          # Plain (ohne v / -rc) für Cargo.toml
           plain="${major}.${minor}.${patch}"
+          # Tag (mit v + -rc)
           tag="v${plain}-rc"
-          echo "TAG_NAME=$tag"     >> "$GITHUB_OUTPUT"
-          echo "PLAIN_VER=$plain"  >> "$GITHUB_OUTPUT"
-          echo "CREATE=true"       >> "$GITHUB_OUTPUT"
-          echo "Neuer Tag: $tag (plain=$plain; bump=$bump)"
 
-      - name: Install cargo-workspaces
+          echo "TAG_NAME=$tag"   >> "$GITHUB_OUTPUT"
+          echo "PLAIN_VER=$plain" >> "$GITHUB_OUTPUT"
+          echo "CREATE=true"     >> "$GITHUB_OUTPUT"
+          echo "Neuer Tag: $tag (plain=$plain; PR-Titel: $title; bump=$bump)"
+
+      - name: Setup Rust (stable) for cargo-edit
         if: ${{ steps.version.outputs.CREATE == 'true' }}
-        run: cargo install cargo-workspaces --locked
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
 
-      - name: Bump ALL crate versions + internal deps to ${{ steps.version.outputs.PLAIN_VER }}
+      - name: Install cargo-edit
+        if: ${{ steps.version.outputs.CREATE == 'true' }}
+        run: cargo install cargo-edit --locked
+
+      - name: Update Cargo.toml versions to ${{ steps.version.outputs.PLAIN_VER }}
         if: ${{ steps.version.outputs.CREATE == 'true' }}
         run: |
           set -euo pipefail
-          # --all: alle Workspace-Mitglieder
-          # --exact: schreibt exakte Versionsnummern (keine Carets)
-          # --no-git-tag/commit: wir committen selbst im nächsten Step
-          # -y: non-interactive
-          cargo workspaces version ${{ steps.version.outputs.PLAIN_VER }} \
-            --all --exact --no-git-tag --no-git-commit -y
+          cargo set-version --workspace "${{ steps.version.outputs.PLAIN_VER }}"
 
-      - name: Commit version bumps (workspace + crates/*)
+      - name: Commit version bumps
         if: ${{ steps.version.outputs.CREATE == 'true' }}
         run: |
           set -euo pipefail
@@ -90,15 +114,15 @@ jobs:
             git config user.name  "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add -A
-            git commit -m "chore(version): bump workspace to ${{ steps.version.outputs.PLAIN_VER }}"
+            git commit -m "chore(version): set workspace version to ${{ steps.version.outputs.PLAIN_VER }}"
             git push origin ${{ github.event.pull_request.base.ref }}
           fi
 
       - name: Create and push tag ${{ steps.version.outputs.TAG_NAME }}
         if: ${{ steps.version.outputs.CREATE == 'true' }}
         run: |
-          git tag -a "${{ steps.version.outputs.TAG_NAME }}" -m "Pre-release: ${{ steps.version.outputs.TAG_NAME }} (from PR #${{ github.event.pull_request.number }})"
-          git push origin "${{ steps.version.outputs.TAG_NAME }
+          git tag -a "${{ steps.version.outputs.TAG_NAME }}" -m "Pre-release: ${{ steps.version.outputs.TAG_NAME }} (from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }})"
+          git push origin "${{ steps.version.outputs.TAG_NAME }}"
 
   release-linux:
     needs: compute-and-tag
