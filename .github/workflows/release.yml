@@ -78,10 +78,23 @@ jobs:
             echo "new-release-prerelease=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Debug semantic-release outputs
+        if: always()
+        run: |
+          echo "=== Semantic Release Debug ==="
+          echo "Published: '${{ steps.semantic.outputs.new-release-published }}'"
+          echo "Version: '${{ steps.semantic.outputs.new-release-version }}'"
+          echo "Tag: '${{ steps.semantic.outputs.new-release-git-tag }}'"
+          echo "Prerelease: '${{ steps.semantic.outputs.new-release-prerelease }}'"
+          echo "=== Conditions for Build ==="
+          echo "Will build: ${{ steps.semantic.outputs.new-release-published == 'true' && steps.semantic.outputs.new-release-version != '' }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "============================="
+
   build:
     name: Build ${{ matrix.platform.name }}
     needs: release
-    if: ${{ needs.release.outputs.published == 'true' }}
+    if: ${{ needs.release.outputs.published == 'true' && needs.release.outputs.version != '' }}
     runs-on: ${{ matrix.platform.os }}
     strategy:
       matrix:
