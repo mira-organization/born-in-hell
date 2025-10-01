@@ -7,7 +7,7 @@ permissions:
 on:
   pull_request:
     types: [closed]
-    branches: [staging]
+    branches: [develop]
 
 env:
   binary: born-in-hell
@@ -17,11 +17,11 @@ env:
 jobs:
   compute-and-tag:
     name: Compute next pre-release tag
-
-    if: ${{ github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'develop' }}
+    if: ${{ github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.version.outputs.TAG_NAME }}
+      create:   ${{ steps.version.outputs.CREATE }}
     steps:
       - name: Checkout (full history incl. tags)
         uses: actions/checkout@v4
@@ -30,8 +30,7 @@ jobs:
           lfs: ${{ env.use_git_lfs == 'true' }}
 
       - name: Fetch tags
-        run: |
-          git fetch --tags --force
+        run: git fetch --tags --force
 
       - name: Determine next version from PR title
         id: version
@@ -41,12 +40,27 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Finde letzten rc-Tag (z. B. v0.1.2-rc)
+          title="$PR_TITLE"
+
+          # Nur feat/fix zulassen (case-insensitive)
+          shopt -s nocasematch
+          if [[ "$title" =~ ^feat ]]; then
+            bump="minor"
+          elif [[ "$title" =~ ^fix ]]; then
+            bump="patch"
+          else
+            echo "CREATE=false" >> "$GITHUB_OUTPUT"
+            echo "Kein Pre-Release: PR-Titel startet nicht mit feat/fix -> '$title'"
+            exit 0
+          fi
+          shopt -u nocasematch
+
+          # Letzten rc-Tag finden (Format: vX.Y.Z-rc)
           last_tag="$(git tag -l 'v*-rc' --sort=-v:refname | head -n1 || true)"
 
           if [[ -z "$last_tag" ]]; then
-            # Kein vorheriger rc-Tag → Startwert
-            major=0; minor=1; patch=0
+            # Startwert, wie gewünscht
+            major=1; minor=0; patch=0
           else
             if [[ "$last_tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-rc$ ]]; then
               major="${BASH_REMATCH[1]}"
@@ -58,24 +72,20 @@ jobs:
             fi
           fi
 
-          title="$PR_TITLE"
-          shopt -s nocasematch
-          if [[ "$title" =~ ^feat ]]; then
-            patch=$((patch+1))
-          elif [[ "$title" =~ ^base ]]; then
+          if [[ "$bump" == "minor" ]]; then
             minor=$((minor+1))
             patch=0
           else
-            # Fallback: Patch bump (falls du strikt sein willst -> exit 1)
             patch=$((patch+1))
           fi
-          shopt -u nocasematch
 
           new_tag="v${major}.${minor}.${patch}-rc"
           echo "TAG_NAME=$new_tag" >> "$GITHUB_OUTPUT"
-          echo "Neuer Tag: $new_tag (PR-Titel: $title)"
+          echo "CREATE=true" >> "$GITHUB_OUTPUT"
+          echo "Neuer Tag: $new_tag (PR-Titel: $title; bump=$bump)"
 
       - name: Create and push tag
+        if: ${{ steps.version.outputs.CREATE == 'true' }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -84,6 +94,7 @@ jobs:
 
   release-linux:
     needs: compute-and-tag
+    if: ${{ needs.compute-and-tag.outputs.create == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -143,11 +154,13 @@ jobs:
 
   release-windows:
     needs: compute-and-tag
+    if: ${{ needs.compute-and-tag.outputs.create == 'true' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: ${{ env.use_git_lfs == 'true' }}
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-08-07
@@ -191,11 +204,13 @@ jobs:
 
   release-macOS-intel:
     needs: compute-and-tag
+    if: ${{ needs.compute-and-tag.outputs.create == 'true' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: ${{ env.use_git_lfs == 'true' }}
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-08-07
@@ -238,11 +253,13 @@ jobs:
 
   release-macOS-apple-silicon:
     needs: compute-and-tag
+    if: ${{ needs.compute-and-tag.outputs.create == 'true' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: ${{ env.use_git_lfs == 'true' }}
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-08-07
