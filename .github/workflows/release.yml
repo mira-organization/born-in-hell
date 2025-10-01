@@ -254,17 +254,57 @@ jobs:
     if: ${{ needs.release.outputs.published == 'true' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout for changelog
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get release notes
+        id: release_notes
+        run: |
+          # Wait a moment for the release to be fully created
+          sleep 10
+          
+          # Get the release notes from the GitHub API with retry
+          for i in {1..3}; do
+            RELEASE_NOTES=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/v${{ needs.release.outputs.version }}" \
+              | jq -r '.body // "No changelog available"')
+            
+            if [[ "$RELEASE_NOTES" != "No changelog available" ]] && [[ "$RELEASE_NOTES" != "null" ]]; then
+              break
+            fi
+            echo "Attempt $i: Release notes not ready yet, waiting..."
+            sleep 5
+          done
+          
+          # Limit length and clean up markdown for Discord
+          RELEASE_NOTES=$(echo "$RELEASE_NOTES" | head -c 1000 | sed 's/^#\+/•/g')
+          
+          # Escape special characters for GitHub Actions
+          RELEASE_NOTES="${RELEASE_NOTES//'%'/'%25'}"
+          RELEASE_NOTES="${RELEASE_NOTES//$'\n'/'%0A'}"
+          RELEASE_NOTES="${RELEASE_NOTES//$'\r'/'%0D'}"
+          
+          echo "notes=$RELEASE_NOTES" >> $GITHUB_OUTPUT
+
       - name: Send Discord notification
         uses: Ilshidur/action-discord@master
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         with:
           args: |
-            🎉 **New Release Available!**
+            🎉 **Born in Hell ${{ needs.release.outputs.version }}** ${{ needs.release.outputs.prerelease == 'true' && '🧪' || '✅' }}
             
-            **Version:** `${{ needs.release.outputs.version }}`
-            **Type:** ${{ needs.release.outputs.prerelease == 'true' && '🧪 Pre-Release' || '✅ Stable Release' }}
+            **📋 What's New:**
+            ```
+            ${{ steps.release_notes.outputs.notes }}
+            ```
             
-            📦 **Download:** https://github.com/${{ github.repository }}/releases/tag/v${{ needs.release.outputs.version }}
+            **📦 Direct Downloads:**
+            🐧 [Linux](https://github.com/${{ github.repository }}/releases/download/v${{ needs.release.outputs.version }}/born-in-hell-linux-${{ needs.release.outputs.version }}.zip)
+            💻 [Windows](https://github.com/${{ github.repository }}/releases/download/v${{ needs.release.outputs.version }}/born-in-hell-windows-${{ needs.release.outputs.version }}.zip)
+            🖥️ [macOS Intel](https://github.com/${{ github.repository }}/releases/download/v${{ needs.release.outputs.version }}/born-in-hell-macOS-intel-${{ needs.release.outputs.version }}.dmg)
+            💻 [macOS Apple Silicon](https://github.com/${{ github.repository }}/releases/download/v${{ needs.release.outputs.version }}/born-in-hell-macOS-apple-silicon-${{ needs.release.outputs.version }}.dmg)
             
-            Built for: Linux, Windows, macOS (Intel & Apple Silicon)
+            🔗 [Full Release Page](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.release.outputs.version }})
