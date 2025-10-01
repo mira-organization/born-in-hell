@@ -1,6 +1,6 @@
 [package]
 name = "born-in-hell"
-version = "0.1.0"
+version = "0.0.0-dev"
 edition = "2024"
 authors = ["Daniel Ramke <genshin.exepta@outlook.com>"]
 

@@ -1,0 +1,225 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - beta
+      - release
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+env:
+  binary: born-in-hell
+  add_binaries_to_github_release: true
+  use_git_lfs: false
+
+jobs:
+  release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.semantic.outputs.new_release_version }}
+      published: ${{ steps.semantic.outputs.new_release_published }}
+      tag: ${{ steps.semantic.outputs.new_release_git_tag }}
+      prerelease: ${{ steps.semantic.outputs.new_release_prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Release
+        id: semantic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx -p @semantic-release/commit-analyzer \
+               -p @semantic-release/github \
+               -p @semantic-release/release-notes-generator \
+               -p conventional-changelog-conventionalcommits \
+               -p semantic-release \
+               semantic-release
+
+  build:
+    name: Build ${{ matrix.platform.name }}
+    needs: release
+    if: ${{ needs.release.outputs.published == 'true' }}
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      matrix:
+        platform:
+          - name: Linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin: born-in-hell
+            archive: zip
+            content_type: application/zip
+            deps: |
+              sudo apt-get update
+              sudo apt-get install -y pkg-config libx11-dev libasound2-dev libudev-dev \
+                libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev zip
+          
+          - name: Windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: born-in-hell.exe
+            archive: zip
+            content_type: application/zip
+          
+          - name: macOS-Intel
+            os: macos-latest
+            target: x86_64-apple-darwin
+            bin: born-in-hell
+            archive: dmg
+            content_type: application/x-apple-diskimage
+            build_env: |
+              CFLAGS=-fno-stack-check
+              MACOSX_DEPLOYMENT_TARGET=10.9
+          
+          - name: macOS-Apple-Silicon
+            os: macos-latest
+            target: aarch64-apple-darwin
+            bin: born-in-hell
+            archive: dmg
+            content_type: application/x-apple-diskimage
+            build_env: |
+              MACOSX_DEPLOYMENT_TARGET=11
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: ${{ env.use_git_lfs == 'true' }}
+          ref: ${{ github.ref }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2025-08-07
+          components: clippy, rustfmt
+          targets: ${{ matrix.platform.target }}
+
+      - name: Update Cargo.toml versions for build
+        shell: bash
+        run: |
+          VERSION="${{ needs.release.outputs.version }}"
+          
+          cargo install cargo-edit --locked || echo "cargo-edit already installed"
+          
+          cargo set-version --workspace "$VERSION"
+          
+          echo "Updated Cargo.toml files to version: $VERSION"
+
+      - name: Install dependencies (Linux)
+        if: matrix.platform.os == 'ubuntu-latest'
+        run: ${{ matrix.platform.deps }}
+
+      - name: Set build environment
+        if: matrix.platform.build_env
+        run: |
+          echo "${{ matrix.platform.build_env }}" >> $GITHUB_ENV
+
+      - name: Set Cargo Target Directory
+        if: matrix.platform.os == 'ubuntu-latest'
+        run: echo "CARGO_TARGET_DIR=target" >> $GITHUB_ENV
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.platform.target }}
+
+      - name: Prepare package (Linux/Windows)
+        if: matrix.platform.archive == 'zip'
+        shell: bash
+        run: |
+          platform_name=$(echo "${{ matrix.platform.name }}" | tr '[:upper:]' '[:lower:]')
+          mkdir "$platform_name"
+          
+          if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
+            cp "target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }}" "$platform_name/"
+          else
+            cp "target/${{ matrix.platform.target }}/release/${{ env.binary }}" "$platform_name/"
+          fi
+          
+          [[ -d "assets" ]] && cp -r assets "$platform_name/" || true
+          [[ -d "config" ]] && cp -r config "$platform_name/" || true
+
+      - name: Create ZIP (Linux/Windows)
+        if: matrix.platform.archive == 'zip'
+        shell: bash
+        run: |
+          platform_name=$(echo "${{ matrix.platform.name }}" | tr '[:upper:]' '[:lower:]')
+          if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
+            powershell.exe -Command "Compress-Archive -Path '$platform_name/*' -DestinationPath '${{ env.binary }}.zip'"
+          else
+            cd "$platform_name" && zip --recurse-paths "../${{ env.binary }}.zip" .
+          fi
+
+      - name: Prepare package (macOS)
+        if: matrix.platform.archive == 'dmg'
+        run: |
+          mkdir -p ${{ env.binary }}.app/Contents/MacOS
+          cp target/${{ matrix.platform.target }}/release/${{ env.binary }} ${{ env.binary }}.app/Contents/MacOS/
+          [[ -d "assets" ]] && cp -r assets ${{ env.binary }}.app/Contents/MacOS/ || true
+          [[ -d "config" ]] && cp -r config ${{ env.binary }}.app/Contents/MacOS/ || true
+          
+          if [[ "${{ matrix.platform.name }}" == "macOS-Apple-Silicon" ]]; then
+            hdiutil create -fs HFS+ -volname "${{ env.binary }}-macOS-apple-silicon" -srcfolder ${{ env.binary }}.app ${{ env.binary }}-macOS-apple-silicon.dmg
+          else
+            hdiutil create -fs HFS+ -volname "${{ env.binary }}-macOS-intel" -srcfolder ${{ env.binary }}.app ${{ env.binary }}-macOS-intel.dmg
+          fi
+
+      - name: Upload to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.name }}
+          path: |
+            *.zip
+            *.dmg
+          retention-days: 1
+
+      - name: Get artifact filename
+        id: artifact
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform.archive }}" == "zip" ]]; then
+            filename="${{ env.binary }}.zip"
+            if [[ "${{ matrix.platform.name }}" == "Windows" ]]; then
+              asset_name="${{ env.binary }}-windows-${{ needs.release.outputs.tag }}.zip"
+            else
+              asset_name="${{ env.binary }}-linux-${{ needs.release.outputs.tag }}.zip"
+            fi
+          else
+            if [[ "${{ matrix.platform.name }}" == "macOS-Apple-Silicon" ]]; then
+              filename="${{ env.binary }}-macOS-apple-silicon.dmg"
+              asset_name="${{ env.binary }}-macOS-apple-silicon-${{ needs.release.outputs.tag }}.dmg"
+            else
+              filename="${{ env.binary }}-macOS-intel.dmg"
+              asset_name="${{ env.binary }}-macOS-intel-${{ needs.release.outputs.tag }}.dmg"
+            fi
+          fi
+          echo "filename=$filename" >> $GITHUB_OUTPUT
+          echo "asset_name=$asset_name" >> $GITHUB_OUTPUT
+
+      - name: Upload to release
+        if: ${{ env.add_binaries_to_github_release == 'true' }}
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ steps.artifact.outputs.filename }}
+          asset_name: ${{ steps.artifact.outputs.asset_name }}
+          tag: ${{ needs.release.outputs.tag }}
+          overwrite: true
+          prerelease: ${{ needs.release.outputs.prerelease }}
