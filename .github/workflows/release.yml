@@ -247,3 +247,24 @@ jobs:
           tag: v${{ needs.release.outputs.version }}
           overwrite: true
           prerelease: ${{ needs.release.outputs.prerelease }}
+
+  notify-discord:
+    name: Discord Notification
+    needs: [release, build]
+    if: ${{ needs.release.outputs.published == 'true' && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord notification
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: |
+            🎉 **New Release Available!**
+            
+            **Version:** `${{ needs.release.outputs.version }}`
+            **Type:** ${{ needs.release.outputs.prerelease == 'true' && '🧪 Pre-Release' || '✅ Stable Release' }}
+            
+            📦 **Download:** https://github.com/${{ github.repository }}/releases/tag/v${{ needs.release.outputs.version }}
+            
+            Built for: Linux, Windows, macOS (Intel & Apple Silicon)
