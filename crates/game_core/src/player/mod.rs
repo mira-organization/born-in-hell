@@ -87,8 +87,8 @@ pub struct PlayerPhysic {
 impl Default for PlayerPhysic {
     fn default() -> Self {
         Self {
-            speed: 200.0,
-            jump_force: 420.0,
+            speed: 350.0,
+            jump_force: 500.0,
             velocity: Vec2::new(0., -0.1),
             grounded: false,
             released_jump: false,

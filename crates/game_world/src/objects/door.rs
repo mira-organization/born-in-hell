@@ -50,7 +50,7 @@ fn door_creation(
     level_data: Res<LevelData>
 ) {
     let Some(map) = level_data.map.as_ref() else { return; };
-    let Some(object) = object_layers.get_data("Interact", "DoorTest") else { return; };
+    let Some(object) = object_layers.get_data("Interact", "CaveEntry") else { return; };
     if !object.user_type.eq_ignore_ascii_case(&"observe") { return; }
 
     let width = object.shape.get_width();
@@ -60,7 +60,7 @@ fn door_creation(
     let center = origin + Vec2::new(width * 0.5, height * 0.5);
 
     commands.spawn((
-        Name::new("DoorSensor"),
+        Name::new("CaveSensor"),
         DoorSensor,
         Transform::from_xyz(center.x, center.y - height, 0.0),
         GlobalTransform::IDENTITY,
