@@ -124,7 +124,7 @@ fn init_player(
 
         commands.spawn((
             Name::new("Player"),
-            Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(1.0)),
+            Transform::from_translation(Vec3::new(position.x, position.y, 10.)).with_scale(Vec3::splat(3.5)),
             GlobalTransform::IDENTITY,
             Visibility::Visible,
             InheritedVisibility::VISIBLE,

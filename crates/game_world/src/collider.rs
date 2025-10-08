@@ -44,9 +44,9 @@ fn build_tile_colliders_once(
     let mw = map.width as i32;
     let mh = map.height as i32;
 
-    let parent = commands.spawn((
+    let world_parent = commands.spawn((
         Name::new("CollisionWorld"),
-        Transform::from_xyz(0.0, 0.0, 0.0),
+        Transform::IDENTITY,
         GlobalTransform::IDENTITY,
         Visibility::Visible,
         InheritedVisibility::VISIBLE,
@@ -60,11 +60,19 @@ fn build_tile_colliders_once(
             for y in 0..mh {
                 let tx = x;
                 let ty_inv = mh - 1 - y;
-                let Some(tile) = ld.get_tile(tx, ty_inv) else { continue };
 
+                let Some(tile) = ld.get_tile(tx, ty_inv) else { continue };
                 let ts_index = tile.tileset_index();
                 let tileset = &map.tilesets()[ts_index];
                 let id = tile.id();
+
+                let (flip_h, flip_v, flip_d) = ld
+                    .get_tile_data(tx, ty_inv)
+                    .map(|td| (td.flip_h, td.flip_v, td.flip_d))
+                    .unwrap_or((false, false, false));
+
+                let world_cx = (x as f32 + 0.5) * tw;
+                let world_cy = (y as f32 + 0.5) * th;
 
                 let mut spawned_any = false;
 
@@ -73,90 +81,103 @@ fn build_tile_colliders_once(
                         for obj in ol.object_data() {
                             match &obj.shape {
                                 ObjectShape::Rect { width, height } => {
-                                    let (cx, cy) = world_center_for_rect(tx, ty_inv, *width, *height, obj.x, obj.y, tw, th, mh);
-                                    commands.spawn((
-                                        Name::new("TileRect"),
-                                        RigidBody::Fixed,
-                                        Collider::cuboid(*width * 0.5, *height * 0.5),
-                                        Transform::from_xyz(cx, cy, 0.0),
-                                        GlobalTransform::IDENTITY,
-                                        Visibility::Visible,
-                                        InheritedVisibility::VISIBLE,
-                                        ChildOf(parent),
-                                    ));
-                                    spawned_any = true;
+                                    let mut pts = rect_points_local(tw, th, obj.x, obj.y, *width, *height).to_vec();
+                                    apply_tiled_flips(&mut pts, flip_h, flip_v, flip_d);
+                                    rotate_points(&mut pts, obj.rotation);
+                                    let center = centroid(&pts);
+                                    let local: Vec<Vec2> = pts.into_iter().map(|p| p - center).collect();
+                                    if let Some(ch) = Collider::convex_hull(&local) {
+                                        commands.spawn((
+                                            Name::new("TileRectPoly"),
+                                            RigidBody::Fixed,
+                                            ch,
+                                            Transform::from_translation(Vec3::new(world_cx + center.x, world_cy + center.y, 0.0)),
+                                            GlobalTransform::IDENTITY,
+                                            Visibility::Visible,
+                                            InheritedVisibility::VISIBLE,
+                                            ChildOf(world_parent),
+                                        ));
+                                        spawned_any = true;
+                                    }
                                 }
+
                                 ObjectShape::Ellipse { width, height } => {
                                     let r = width.min(*height) * 0.5;
-                                    let (cx, cy) = world_center_for_rect(tx, ty_inv, *width, *height, obj.x, obj.y, tw, th, mh);
+                                    let cx = (obj.x + width * 0.5) - tw * 0.5;
+                                    let cy = (th - (obj.y + height * 0.5)) - th * 0.5;
                                     commands.spawn((
-                                        Name::new("TileEllipse"),
+                                        Name::new("TileEllipseBall"),
                                         RigidBody::Fixed,
                                         Collider::ball(r),
-                                        Transform::from_xyz(cx, cy, 0.0),
+                                        Transform::from_translation(Vec3::new(world_cx + cx, world_cy + cy, 0.0)),
                                         GlobalTransform::IDENTITY,
                                         Visibility::Visible,
                                         InheritedVisibility::VISIBLE,
-                                        ChildOf(parent),
+                                        ChildOf(world_parent),
                                     ));
                                     spawned_any = true;
                                 }
+
                                 ObjectShape::Polygon { points } => {
-                                    let world = polygon_world_points(tx, ty_inv, points, obj.x, obj.y, tw, th, mh);
-                                    if world.len() >= 3 {
-                                        let center = centroid(&world);
-                                        let local: Vec<Vec2> = world.iter().map(|p| *p - center).collect();
+                                    let mut pts = raw_points_local(tw, th, obj.x, obj.y, points);
+                                    apply_tiled_flips(&mut pts, flip_h, flip_v, flip_d);
+                                    rotate_points(&mut pts, obj.rotation);
+                                    if pts.len() >= 3 {
+                                        let center = centroid(&pts);
+                                        let local: Vec<Vec2> = pts.into_iter().map(|p| p - center).collect();
                                         if let Some(ch) = Collider::convex_hull(&local) {
                                             commands.spawn((
                                                 Name::new("TilePoly"),
                                                 RigidBody::Fixed,
                                                 ch,
-                                                Transform::from_xyz(center.x, center.y, 0.0),
+                                                Transform::from_translation(Vec3::new(world_cx + center.x, world_cy + center.y, 0.0)),
                                                 GlobalTransform::IDENTITY,
                                                 Visibility::Visible,
                                                 InheritedVisibility::VISIBLE,
-                                                ChildOf(parent),
+                                                ChildOf(world_parent),
                                             ));
                                             spawned_any = true;
                                         }
                                     }
                                 }
+
                                 ObjectShape::Polyline { points } => {
-                                    let world = polygon_world_points(tx, ty_inv, points, obj.x, obj.y, tw, th, mh);
-                                    if world.len() >= 2 {
-                                        let center = centroid(&world);
-                                        let local: Vec<Vec2> = world.iter().map(|p| *p - center).collect();
+                                    let mut pts = raw_points_local(tw, th, obj.x, obj.y, points);
+                                    apply_tiled_flips(&mut pts, flip_h, flip_v, flip_d);
+                                    rotate_points(&mut pts, obj.rotation);
+                                    if pts.len() >= 2 {
+                                        let center = centroid(&pts);
+                                        let local: Vec<Vec2> = pts.into_iter().map(|p| p - center).collect();
                                         commands.spawn((
                                             Name::new("TilePolyline"),
                                             RigidBody::Fixed,
                                             Collider::polyline(local, None),
-                                            Transform::from_xyz(center.x, center.y, 0.0),
+                                            Transform::from_translation(Vec3::new(world_cx + center.x, world_cy + center.y, 0.0)),
                                             GlobalTransform::IDENTITY,
                                             Visibility::Visible,
                                             InheritedVisibility::VISIBLE,
-                                            ChildOf(parent),
+                                            ChildOf(world_parent),
                                         ));
                                         spawned_any = true;
                                     }
                                 }
+
                                 _ => { warn!("Unhandled collision shape"); }
                             }
                         }
                     }
                 }
 
-                if !spawned_any && layer.name == "Collision" {
-                    let cx = (x as f32 + 0.5) * tw;
-                    let cy = (y as f32 + 0.5) * th;
+                if !spawned_any && layer.name.starts_with("Collision") {
                     commands.spawn((
                         Name::new("CollisionBox"),
                         RigidBody::Fixed,
                         Collider::cuboid(tw * 0.5, th * 0.5),
-                        Transform::from_xyz(cx, cy, 0.0),
+                        Transform::from_xyz((x as f32 + 0.5) * tw, (y as f32 + 0.5) * th, 0.0),
                         GlobalTransform::IDENTITY,
                         Visibility::Visible,
                         InheritedVisibility::VISIBLE,
-                        ChildOf(parent),
+                        ChildOf(world_parent),
                     ));
                 }
             }
@@ -175,34 +196,52 @@ fn centroid(pts: &[Vec2]) -> Vec2 {
     sum / (pts.len() as f32)
 }
 
-/// Converts a Tiled rectangle object (offsets and local size inside a tile)
-/// into a world-space center position for spawning a collider.
-///
-/// # Parameters
-/// * `tx`, `ty_inv` - Tile coordinates (with Y inverted to match world origin).
-/// * `w`, `h` - Rectangle size in pixels.
-/// * `ox`, `oy` - Rectangle local offsets inside the tile (Tiled space).
-/// * `tw`, `th` - Tile width/height in pixels.
-/// * `mh` - Map height in tiles (for Y flip).
 #[coverage(off)]
-fn world_center_for_rect(tx: i32, ty_inv: i32, w: f32, h: f32, ox: f32, oy: f32, tw: f32, th: f32, mh: i32) -> (f32, f32) {
-    let x0 = tx as f32 * tw + ox + w * 0.5;
-    let y0 = (mh as f32 - 1.0 - ty_inv as f32) * th + (th - (oy + h * 0.5));
-    (x0, y0)
+fn rect_points_local(tw: f32, th: f32, ox: f32, oy: f32, w: f32, h: f32) -> [Vec2; 4] {
+    let pts = [
+        (0.0,     0.0),
+        (w,       0.0),
+        (w,       h),
+        (0.0,     h),
+    ];
+    let mut out = [Vec2::ZERO; 4];
+    for (i, (px, py)) in pts.iter().enumerate() {
+        let x = (ox + *px) - tw * 0.5;
+        let y = (th - (oy + *py)) - th * 0.5;
+        out[i] = Vec2::new(x, y);
+    }
+    out
 }
 
-/// Converts Tiled polygon/polyline points (local to a tile) into world-space
-/// points, applying tile position, local offsets, and Y-axis flip.
-///
-/// # Parameters
-/// * `tx`, `ty_inv` - Tile coordinates (with Y inverted to match world origin).
-/// * `pts` - Local points from Tiled (pixels).
-/// * `ox`, `oy` - Local offset inside the tile (pixels).
-/// * `tw`, `th` - Tile width/height (pixels).
-/// * `mh` - Map height in tiles (for Y flip).
 #[coverage(off)]
-fn polygon_world_points(tx: i32, ty_inv: i32, pts: &[(f32, f32)], ox: f32, oy: f32, tw: f32, th: f32, mh: i32) -> Vec<Vec2> {
-    let base_x = tx as f32 * tw + ox;
-    let base_y = (mh as f32 - 1.0 - ty_inv as f32) * th + (th - oy);
-    pts.iter().map(|(px, py)| Vec2::new(base_x + *px, base_y - *py)).collect()
+fn raw_points_local(tw: f32, th: f32, ox: f32, oy: f32, pts: &[(f32,f32)]) -> Vec<Vec2> {
+    pts.iter().map(|(px,py)| {
+        let x = (ox + *px) - tw * 0.5;
+        let y = (th - (oy + *py)) - th * 0.5;
+        Vec2::new(x,y)
+    }).collect()
+}
+
+#[coverage(off)]
+fn apply_tiled_flips(pts: &mut [Vec2], flip_h: bool, flip_v: bool, flip_d: bool) {
+    if flip_h {
+        for p in pts.iter_mut() { p.x = -p.x; }
+    }
+    if flip_v {
+        for p in pts.iter_mut() { p.y = -p.y; }
+    }
+    if flip_d {
+        for p in pts.iter_mut() { std::mem::swap(&mut p.x, &mut p.y); }
+    }
+}
+
+#[coverage(off)]
+fn rotate_points(pts: &mut [Vec2], deg_clockwise: f32) {
+    let a = -deg_clockwise.to_radians();
+    let (s, c) = a.sin_cos();
+    for p in pts.iter_mut() {
+        let x = p.x * c - p.y * s;
+        let y = p.x * s + p.y * c;
+        p.x = x; p.y = y;
+    }
 }
