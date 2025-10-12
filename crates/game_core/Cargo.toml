@@ -31,10 +31,6 @@ default-features = true
 version = "^1.0"
 features = ["derive"]
 
-# Serde JSON for handle struct by json files
-[dependencies.serde_json]
-version = "^1.0"
-
 # TOML file support for our config files
 [dependencies.toml]
 version = "0.9.6"
@@ -42,7 +38,7 @@ features = ["parse", "display"]
 
 # Fetch system information for windows, linux and Mac
 [dependencies.sysinfo]
-version = "0.37.1"
+version = "0.37.2"
 
 [dependencies]
 nvml-wrapper = { version = "0.11.0", optional = true }

@@ -38,10 +38,6 @@ features = [
     "debug-render-3d"
 ]
 
-[dependencies.bevy_ecs_tilemap]
-version = "0.16.0"
-features = ["atlas"]
-
 [dependencies.tiled]
 version = "0.15.0"
 default-features = false

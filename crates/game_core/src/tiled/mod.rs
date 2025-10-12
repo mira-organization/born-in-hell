@@ -4,8 +4,9 @@ pub mod properties;
 pub mod objects;
 
 use std::collections::HashMap;
+use std::fs::read;
 use std::io::{Cursor, Error, ErrorKind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use bevy::asset::{AssetLoader, LoadContext};
 use bevy::asset::io::Reader;
@@ -105,6 +106,7 @@ pub struct TiledMap {
 /// `tiled::ResourceReader` implementation that serves bytes from memory,
 /// allowing Tiled to read referenced resources from an in-memory buffer.
 struct BytesResourceReader {
+    base_path: PathBuf,
     /// Shared byte buffer backing all reads.
     bytes: Arc<[u8]>,
 }
@@ -114,8 +116,19 @@ impl BytesResourceReader {
     ///
     /// # Parameters
     /// * `bytes` - Source data to expose via the reader.
-    fn new(bytes: &[u8]) -> Self {
+    fn new(tmx_path: &Path, bytes: &[u8]) -> Self {
+        let mut absolute_base = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        absolute_base.push("assets");
+
+        let base_path = tmx_path
+            .parent()
+            .map(|p| absolute_base.join(p))
+            .unwrap_or_else(|| absolute_base.clone())
+            .canonicalize()
+            .unwrap_or_else(|_| absolute_base.clone());
+
         Self {
+            base_path,
             bytes: Arc::from(bytes),
         }
     }
@@ -132,9 +145,89 @@ impl tiled::ResourceReader for BytesResourceReader {
     ///
     /// # Parameters
     /// * `_path` - Ignored; Tiled requests a resource path.
-    fn read_from(&mut self, _path: &Path) -> Result<Self::Resource, Self::Error> {
-        Ok(Cursor::new(self.bytes.clone()))
+    fn read_from(&mut self, path: &Path) -> Result<Self::Resource, Self::Error> {
+        if path.extension().map(|e| e == "tmx").unwrap_or(false) {
+            return Ok(Cursor::new(self.bytes.clone()));
+        }
+
+        let asset_root = self
+            .base_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        let tmx_dir_name = self
+            .base_path
+            .file_name()
+            .map(|s| s.to_owned())
+            .unwrap_or_default();
+
+        use std::path::Component;
+        let first_component_is_tmx_dir = path.components().next().map(|c| match c {
+            Component::Normal(name) => name == tmx_dir_name,
+            _ => false,
+        }).unwrap_or(false);
+
+        let base = if path.is_absolute() {
+            PathBuf::new()
+        } else if first_component_is_tmx_dir {
+            asset_root.clone()
+        } else {
+            self.base_path.clone()
+        };
+
+        let mut resolved = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            base.join(path)
+        };
+
+        resolved = normalize_path(&resolved);
+
+        debug!("Trying to read external resource: {:?}", resolved);
+
+        let final_path = if resolved.exists() {
+            resolved
+        } else {
+            let alt = normalize_path(
+                &asset_root.join("tile_sets").join(
+                    path.file_name().unwrap_or_default()
+                )
+            );
+            if alt.exists() {
+                debug!("Fallback path used: {:?}", alt);
+                alt
+            } else {
+                resolved
+            }
+        };
+
+        let data = read(&final_path).map_err(|err| {
+            Error::new(
+                ErrorKind::Other,
+                format!("Failed to read external resource {:?}: {}", final_path, err),
+            )
+        })?;
+
+        Ok(Cursor::new(Arc::from(data.into_boxed_slice())))
     }
+}
+
+
+/// Normalize a PathBuf (removes "." and resolves "..")
+fn normalize_path(p: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for comp in p.components() {
+        match comp {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            _ => out.push(comp.as_os_str()),
+        }
+    }
+    out
 }
 
 /// Errors that can occur while loading Tiled assets.
@@ -172,10 +265,14 @@ impl AssetLoader for TiledLoader {
         let mut bytes: Vec<u8> = Vec::new();
         reader.read_to_end(&mut bytes).await?;
 
-        let mut loader: tiled::Loader<DefaultResourceCache, _> = tiled::Loader::with_cache_and_reader(
-            DefaultResourceCache::new(),
-            BytesResourceReader::new(&bytes)
-        );
+        let tmx_path = load_context.path().to_path_buf();
+        debug!("Loading TMX map: {}", tmx_path.display());
+
+        let mut loader: tiled::Loader<DefaultResourceCache, _> =
+            tiled::Loader::with_cache_and_reader(
+                DefaultResourceCache::new(),
+                BytesResourceReader::new(&tmx_path, &bytes),
+            );
 
         let map: tiled::Map = loader.load_tmx_map(load_context.path()).map_err(|error| {
             Error::new(ErrorKind::Other, format!("Could not load TMX map: {error}"))
